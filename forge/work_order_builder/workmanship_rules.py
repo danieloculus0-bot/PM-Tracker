@@ -99,7 +99,8 @@ def suggest_rules(text: str, operation_type: str | None = None) -> List[Workmans
     matches = []
     for rule in DEFAULT_RULES:
         term_hit = any(term in haystack for term in rule.trigger_terms)
-        op_hit = not operation or operation in rule.operation_types
+        is_global_override = rule.key == "customer_requirement_precedence"
+        op_hit = not operation or operation in rule.operation_types or is_global_override
         if term_hit and op_hit:
             matches.append(rule)
     return sorted(matches, key=lambda r: r.priority)
