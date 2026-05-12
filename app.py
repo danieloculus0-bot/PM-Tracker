@@ -4,6 +4,7 @@ from flask import Flask, Response, redirect, request, url_for
 
 app = Flask(__name__)
 DATA_FILE = 'pm_data.json'
+SETTINGS_FILE = 'pm_settings.json'
 CSV_DIR = 'data'
 
 MACHINES = ['Machine ID','Machine Name','Department','Location','Manufacturer','Model','Serial Number','Asset Tag','Install Year','Criticality','Notes','Active (Y/N)']
@@ -17,6 +18,32 @@ def clean(v):
 
 def blank():
     return {'Machines': [], 'PM_Tasks': [], 'Completion_Log': []}
+
+
+def default_settings():
+    return {'host': '127.0.0.1', 'port': 5055}
+
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, encoding='utf-8') as f:
+                settings = json.load(f)
+            host = clean(settings.get('host')) or default_settings()['host']
+            port = int(settings.get('port') or default_settings()['port'])
+            if port < 1 or port > 65535:
+                port = default_settings()['port']
+            return {'host': host, 'port': port}
+        except Exception:
+            pass
+    return default_settings()
+
+
+def save_settings(host, port):
+    settings = {'host': clean(host) or default_settings()['host'], 'port': int(port)}
+    with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(settings, f, indent=2)
+    return settings
 
 
 def load_csv(name, fields):
@@ -92,9 +119,10 @@ def log_id(data):
 
 
 def page(title, body):
+    settings = load_settings()
     return f'''<!doctype html><html><head><meta charset="utf-8"><title>{title}</title><style>
-body{{font-family:Arial,sans-serif;background:#0f172a;color:#e5e7eb;margin:0}}header{{background:#020617;padding:16px 24px;border-bottom:1px solid #334155}}main{{max-width:1200px;margin:auto;padding:24px}}a{{color:#38bdf8}}nav a{{margin-left:14px}}.card{{background:#1f2937;border:1px solid #334155;border-radius:12px;padding:16px;margin:0 0 16px}}table{{width:100%;border-collapse:collapse}}td,th{{border-bottom:1px solid #334155;padding:9px;text-align:left;vertical-align:top}}th,.muted{{color:#94a3b8}}input,select,textarea{{width:100%;padding:9px;border-radius:7px;border:1px solid #334155;background:#020617;color:#e5e7eb}}textarea{{min-height:70px}}label{{display:block;margin:8px 0;color:#94a3b8}}button,.btn{{background:#38bdf8;color:#00111f;border:0;border-radius:8px;padding:10px 14px;font-weight:700;text-decoration:none}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}}
-</style></head><body><header><b><a href="/">PM Tracker</a></b><nav><a href="/machines/new">Add Machine</a><a href="/tasks/new">Add Task</a><a href="/completions">Completions</a></nav></header><main>{body}</main></body></html>'''
+body{{font-family:Arial,sans-serif;background:#0f172a;color:#e5e7eb;margin:0}}header{{background:#020617;padding:16px 24px;border-bottom:1px solid #334155}}main{{max-width:1200px;margin:auto;padding:24px}}a{{color:#38bdf8}}nav a{{margin-left:14px}}.card{{background:#1f2937;border:1px solid #334155;border-radius:12px;padding:16px;margin:0 0 16px}}table{{width:100%;border-collapse:collapse}}td,th{{border-bottom:1px solid #334155;padding:9px;text-align:left;vertical-align:top}}th,.muted{{color:#94a3b8}}input,select,textarea{{width:100%;padding:9px;border-radius:7px;border:1px solid #334155;background:#020617;color:#e5e7eb}}textarea{{min-height:70px}}label{{display:block;margin:8px 0;color:#94a3b8}}button,.btn{{background:#38bdf8;color:#00111f;border:0;border-radius:8px;padding:10px 14px;font-weight:700;text-decoration:none}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}}.right{{float:right;color:#94a3b8;font-size:13px}}
+</style></head><body><header><b><a href="/">PM Tracker</a></b><span class="right">Host {settings['host']} | Port {settings['port']}</span><nav><a href="/machines/new">Add Machine</a><a href="/tasks/new">Add Task</a><a href="/completions">Completions</a><a href="/settings">Host/Port</a></nav></header><main>{body}</main></body></html>'''
 
 
 @app.route('/')
@@ -104,6 +132,21 @@ def home():
     tasks = [t for t in data['PM_Tasks'] if active(t)]
     rows = ''.join(f"<tr><td><a href='/machine/{m['Machine ID']}'>{m['Machine Name']}</a></td><td>{m['Machine ID']}</td><td>{m['Department']}</td><td>{m['Location']}</td><td>{m['Criticality']}</td></tr>" for m in machines)
     return page('PM Tracker', f"<h1>Preventive Maintenance Tracker</h1><div class='grid'><div class='card'><h2>{len(machines)}</h2><p>Active machines</p></div><div class='card'><h2>{len(tasks)}</h2><p>Active PM tasks</p></div><div class='card'><h2>{len(data['Completion_Log'])}</h2><p>Completion records</p></div></div><div class='card'><h2>Machines</h2><table><tr><th>Machine</th><th>ID</th><th>Department</th><th>Location</th><th>Criticality</th></tr>{rows}</table></div>")
+
+
+@app.route('/settings', methods=['GET','POST'])
+def settings():
+    current = load_settings()
+    msg = ''
+    if request.method == 'POST':
+        try:
+            new = save_settings(request.form.get('host'), request.form.get('port'))
+            msg = f"<p class='muted'>Saved. Restart the app for server binding changes to take effect. New setting: {new['host']} port {new['port']}.</p>"
+            current = new
+        except Exception as exc:
+            msg = f"<p class='muted'>Could not save settings: {exc}</p>"
+    body = f"<h1>Host and Port</h1><div class='card'><form method='post'><div class='grid'><label>Host<input name='host' value='{current['host']}'></label><label>Port<input name='port' type='number' min='1' max='65535' value='{current['port']}'></label></div><button>Save Host/Port</button></form>{msg}<p class='muted'>Use 127.0.0.1 for local-only access. Use 0.0.0.0 only when you intentionally want LAN access.</p></div>"
+    return page('Host and Port', body)
 
 
 @app.route('/machine/<machine_id>')
@@ -185,4 +228,6 @@ def export_csv(table):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    settings = load_settings()
+    print(f"PM Tracker starting on host {settings['host']} port {settings['port']}")
+    app.run(debug=True, host=settings['host'], port=settings['port'])
