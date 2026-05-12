@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+pm_data.json
+pm_app.db
+instance/
+.DS_Store
