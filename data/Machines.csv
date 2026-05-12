@@ -1,0 +1,9 @@
+Machine ID,Machine Name,Department,Location,Manufacturer,Model,Serial Number,Asset Tag,Install Year,Criticality,Notes,Active (Y/N)
+LAS-001,Laser 1,Fabrication,North Bay,Trumpf,TruLaser 3030,TL3030-001,EZ-LAS-001,2021,High,Primary sheet laser for daily production work.,Y
+LAS-002,Laser 2,Fabrication,North Bay,HK,1234,1234-5678,EZ-LAS-002,2019,High,Backup / overflow flat laser.,Y
+BRK-001,Brake 1,Forming,South Bay,Accurpress,Test,Test,EZ-BRK-001,2018,High,Primary press brake for formed parts.,Y
+BRK-002,Brake 2,Forming,South Bay,Bystronic,90CBII,90CBII-002,EZ-BRK-002,2016,Medium,Secondary brake for short-run work.,Y
+TBL-001,Tube Laser,Fabrication,Tube Area,Bystronic,LT7,LT7-001,EZ-TBL-001,2022,High,Tube processing center.,Y
+CNC-001,CNC Mill 1,Machining,Machine Shop,Haas,VF-2,VF2-001,EZ-CNC-001,2015,High,Primary vertical mill.,Y
+SAW-001,Band Saw,Cutting,Saw Area,DoAll,C-916,C916-001,EZ-SAW-001,2014,Medium,General saw cutting station.,Y
+WLD-001,Weld Cell 1,Welding,Weld Bay,Lincoln,Power Wave,WELD-001,EZ-WLD-001,2023,Medium,Dedicated production weld cell.,Y
