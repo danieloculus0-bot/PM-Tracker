@@ -1,4 +1,3 @@
-import os
 import sys
 from pathlib import Path
 
@@ -28,6 +27,14 @@ def test_first_launch_has_no_fake_data(monkeypatch, tmp_path):
     assert '0</h2><p>Completion records</p>' in html
 
 
+def test_sqlite_db_file_created_on_first_load(monkeypatch, tmp_path):
+    setup_temp(monkeypatch, tmp_path)
+    assert not (tmp_path / 'pm_app.db').exists()
+    data = pm_app.load()
+    assert data == {'Machines': [], 'PM_Tasks': [], 'Completion_Log': []}
+    assert (tmp_path / 'pm_app.db').exists()
+
+
 def test_host_port_settings_save(monkeypatch, tmp_path):
     client = setup_temp(monkeypatch, tmp_path)
     response = client.post('/settings', data={'host': '127.0.0.1', 'port': '6060'})
@@ -54,6 +61,44 @@ def test_add_machine_task_and_completion(monkeypatch, tmp_path):
     assert len(data['Machines']) == 1
     assert len(data['PM_Tasks']) == 1
     assert len(data['Completion_Log']) == 1
+
+
+def test_duplicate_machine_id_blocked(monkeypatch, tmp_path):
+    client = setup_temp(monkeypatch, tmp_path)
+    machine = {field: '' for field in pm_app.MACHINES}
+    machine.update({'Machine ID': 'M-1', 'Machine Name': 'Press', 'Active (Y/N)': 'Y'})
+    assert client.post('/machines/new', data=machine).status_code == 302
+    duplicate = dict(machine)
+    duplicate['Machine Name'] = 'Duplicate Press'
+    response = client.post('/machines/new', data=duplicate)
+    assert response.status_code == 409
+    assert 'already exists' in response.data.decode()
+    assert len(pm_app.load()['Machines']) == 1
+
+
+def test_search_finds_machine_through_related_task(monkeypatch, tmp_path):
+    client = setup_temp(monkeypatch, tmp_path)
+    machine = {field: '' for field in pm_app.MACHINES}
+    machine.update({'Machine ID': 'M-1', 'Machine Name': 'Press', 'Active (Y/N)': 'Y'})
+    assert client.post('/machines/new', data=machine).status_code == 302
+    task = {field: '' for field in pm_app.TASKS}
+    task.update({'Task ID': 'T-99', 'Machine ID': 'M-1', 'Task Name': 'Check hydraulic gremlin valve', 'Frequency Unit (Days/Weeks/Months)': 'Days', 'Frequency Value': '30', 'Active (Y/N)': 'Y'})
+    assert client.post('/tasks/new', data=task).status_code == 302
+    response = client.get('/?q=gremlin')
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert 'Press' in html
+    assert 'M-1' in html
+
+
+def test_exports_page_links_all_csv_exports(monkeypatch, tmp_path):
+    client = setup_temp(monkeypatch, tmp_path)
+    response = client.get('/exports')
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert '/export/Machines.csv' in html
+    assert '/export/PM_Tasks.csv' in html
+    assert '/export/Completion_Log.csv' in html
 
 
 def test_csv_export(monkeypatch, tmp_path):
