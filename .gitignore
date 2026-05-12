@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 venv/
 pm_data.json
+pm_settings.json
 pm_app.db
 instance/
 .DS_Store
