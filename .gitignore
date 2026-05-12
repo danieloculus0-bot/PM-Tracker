@@ -5,5 +5,8 @@ venv/
 pm_data.json
 pm_settings.json
 pm_app.db
+*.db-journal
+*.sqlite
+*.sqlite3
 instance/
 .DS_Store
