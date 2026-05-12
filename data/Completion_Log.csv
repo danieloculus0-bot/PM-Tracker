@@ -1,4 +1,1 @@
 Completion ID,Machine ID,Task ID,Completed By,Completion Date,Completion Time,Notes,Pass/Fail
-LOG-0001,LAS-001,LAS001-01,D. Boone,2026-03-17,07:25,"Lens cover cleaned, no issues.",Pass
-LOG-0002,BRK-001,BRK001-01,J. Smith,2026-03-17,08:10,"Tooling inspected, small burr removed.",Pass
-LOG-0003,CNC-001,CNC001-01,A. Diaz,2026-03-16,06:50,Coolant concentration adjusted to spec.,Pass
