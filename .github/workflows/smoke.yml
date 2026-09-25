@@ -1,0 +1,41 @@
+name: PM Tracker smoke
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - name: Compile
+        run: python -m py_compile app.py
+      - name: Flask smoke
+        run: |
+          python - <<'PY'
+          import os
+          import tempfile
+          from pathlib import Path
+
+          root=Path(tempfile.mkdtemp(prefix="pm-tracker-ci-"))
+          os.chdir(root)
+
+          import sys
+          sys.path.insert(0, os.environ["GITHUB_WORKSPACE"])
+          import app as pm
+
+          client=pm.app.test_client()
+          for route in ["/", "/settings", "/completions"]:
+              response=client.get(route)
+              assert response.status_code == 200, (route, response.status_code)
+          data=pm.load()
+          assert set(data) == {"Machines", "PM_Tasks", "Completion_Log"}
+          print("PM Tracker smoke OK")
+          PY
