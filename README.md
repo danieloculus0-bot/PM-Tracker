@@ -1,27 +1,73 @@
 # PM Tracker
 
-Generic preventive maintenance tracker for shops, facilities, makerspaces, and small manufacturing teams.
+Windows-friendly preventive maintenance tracker for manufacturing and facilities environments.
 
-Features:
-- Track machines and assets
-- Track PM tasks by machine
-- Add machines from the browser
-- Add PM tasks from the browser
-- Log PM completions from the browser
-- Export Machines, PM_Tasks, and Completion_Log as CSV
-- Seed data from pm_data.xlsx, CSV files, or data_seed.json
+## Features
 
-Data loading order on first run:
-1. pm_data.xlsx in the project root
-2. CSV files in a data folder named Machines.csv, PM_Tasks.csv, and Completion_Log.csv
-3. data_seed.json
-4. Blank tables
+- Machine and asset tracking
+- Preventive maintenance scheduling
+- PM completion logging
+- Bulk acknowledge / clear-all PM workflow
+- Maintenance request and work-order tracking
+- QR codes for machine pages
+- Excel export
+- Excel import / update workflow
+- Downloadable blank import template
+- Configurable site branding, weather, host, and port
+- Waitress production WSGI server
+- PyInstaller Windows executable build
+- Windows Server installer pipeline
 
-After first run, runtime edits are saved to pm_data.json.
+## Runtime data
 
-Run locally:
-1. Install dependencies from requirements.txt
-2. Run app.py
-3. Open http://127.0.0.1:5000
+Site data is deliberately kept outside the source repository and outside the executable:
 
-The included seed data comes from the uploaded workbook and was not expanded with fake machines or fake tasks.
+- `pm_data.xlsx` contains Machines, PM_Tasks, and Completion_Log sheets.
+- `pm_app.db` contains runtime completion history and maintenance requests.
+- `site_config.json` contains site-specific settings.
+
+If `pm_data.xlsx` does not exist, PM Tracker creates a blank workbook automatically.
+
+## Importing existing PM data
+
+Open **Import / Update Data** in the application.
+
+The importer accepts an `.xlsx` workbook containing any of these sheets:
+
+- `Machines`
+- `PM_Tasks`
+- `Completion_Log`
+
+Machines merge by `Machine ID`. PM tasks merge by `Task ID`. Existing machine/task rows are updated rather than blindly duplicated. Completion history is checked before insertion.
+
+Use **Blank Template** in the application to download `PM_Tracker_Import_Template.xlsx` with the supported columns.
+
+## Site configuration
+
+Copy `site_config.example.json` to `site_config.json` and edit it for the deployment. For server access, use `0.0.0.0` as the host and have IT provide a stable DNS name or reserved/static address.
+
+## Local run
+
+```powershell
+python -m pip install -r requirements.txt
+python .\app.py
+```
+
+## Windows executable
+
+```powershell
+python -m pip install pyinstaller
+python -m PyInstaller --noconfirm --clean --onefile --name "PM Tracker" .\app.py
+```
+
+## Windows Server deployment
+
+GitHub Actions builds a generic Windows Server deployment bundle and installer. The generic build contains no site-specific asset data or history.
+
+The server installer is designed to deploy under `C:\ProgramData\PM Tracker`, preserve runtime data during upgrades, register PM Tracker to start automatically, and open the configured TCP port in Windows Firewall.
+
+Site-specific data should be imported after deployment using the built-in spreadsheet importer, or copied into the deployment folder by authorized IT staff.
+
+## Repository safety
+
+Do not commit live machine data, PM history, runtime SQLite databases, site configuration, proprietary workbooks, deployment backups, or build output.
