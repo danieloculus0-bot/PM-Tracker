@@ -21,21 +21,26 @@ jobs:
         run: |
           python - <<'PY'
           import os
+          import sys
           import tempfile
           from pathlib import Path
 
-          root=Path(tempfile.mkdtemp(prefix="pm-tracker-ci-"))
+          root = Path(tempfile.mkdtemp(prefix="pm-tracker-ci-"))
           os.chdir(root)
-
-          import sys
           sys.path.insert(0, os.environ["GITHUB_WORKSPACE"])
+
           import app as pm
 
-          client=pm.app.test_client()
-          for route in ["/", "/settings", "/completions"]:
-              response=client.get(route)
+          pm.init_db()
+          client = pm.app.test_client()
+
+          for route in ["/", "/import", "/template.xlsx", "/export.xlsx"]:
+              response = client.get(route)
               assert response.status_code == 200, (route, response.status_code)
-          data=pm.load()
-          assert set(data) == {"Machines", "PM_Tasks", "Completion_Log"}
+
+          wb = pm.get_workbook()
+          assert {"Machines", "PM_Tasks", "Completion_Log"}.issubset(set(wb.sheetnames))
+          wb.close()
+
           print("PM Tracker smoke OK")
           PY
