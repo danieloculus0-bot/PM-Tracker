@@ -1,4 +1,4 @@
-name: Build Windows Server Release
+name: Build EZ-WMF Windows Server Release
 
 on:
   push:
@@ -13,6 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,14 +21,48 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Python dependencies
+      - name: Install build dependencies
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install pyinstaller
 
-      - name: Build executable
+      - name: Compile source
+        shell: pwsh
+        run: python -m py_compile .\app.py
+
+      - name: Smoke test blank deployment and import routes
+        shell: pwsh
+        run: |
+          @'
+          import os
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          root = Path(tempfile.mkdtemp(prefix="pm-tracker-release-"))
+          os.chdir(root)
+          sys.path.insert(0, os.environ["GITHUB_WORKSPACE"])
+
+          import app as pm
+
+          pm.ensure_data_workbook()
+          pm.init_db()
+          client = pm.app.test_client()
+
+          for route in ["/", "/import", "/template.xlsx", "/export.xlsx"]:
+              response = client.get(route)
+              assert response.status_code == 200, (route, response.status_code)
+
+          wb = pm.get_workbook()
+          assert {"Machines", "PM_Tasks", "Completion_Log"}.issubset(set(wb.sheetnames))
+          wb.close()
+
+          print("PM Tracker server smoke test OK")
+          '@ | python
+
+      - name: Build Windows executable
         shell: pwsh
         run: python -m PyInstaller --noconfirm --clean --onefile --name "PM Tracker" .\app.py
 
@@ -43,29 +78,54 @@ jobs:
         shell: pwsh
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" .\installer\PM-Tracker-Server.iss'
 
-      - name: Assemble portable server bundle
+      - name: Assemble sanitized EZ-WMF server bundle
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force .\server-bundle | Out-Null
+          New-Item -ItemType Directory -Force .\server-bundle\EZ-WMF-Deployment | Out-Null
+
           Copy-Item '.\dist\PM Tracker.exe' '.\server-bundle\PM Tracker.exe'
           Copy-Item '.\site_config.example.json' '.\server-bundle\site_config.example.json'
           Copy-Item '.\PM_Tracker_Import_Template.xlsx' '.\server-bundle\PM_Tracker_Import_Template.xlsx'
           Copy-Item '.\server\install-server.ps1' '.\server-bundle\install-server.ps1'
           Copy-Item '.\server\uninstall-server.ps1' '.\server-bundle\uninstall-server.ps1'
           Copy-Item '.\README.md' '.\server-bundle\README.md'
+          Copy-Item '.\deployments\EZ-WMF\*' '.\server-bundle\EZ-WMF-Deployment\' -Recurse
+
+          @(
+            "PM Tracker EZ/WMF Windows Server Release"
+            "Commit: $env:GITHUB_SHA"
+            "Build: $env:GITHUB_RUN_NUMBER"
+            "Sanitized: yes"
+            "Production machine data included: no"
+            "Production PM history included: no"
+            "Spreadsheet import sheets: Machines, PM_Tasks, Completion_Log"
+            "Runtime data path: C:\ProgramData\PM Tracker"
+          ) | Set-Content .\RELEASE_MANIFEST.txt
+
+          Copy-Item '.\RELEASE_MANIFEST.txt' '.\server-bundle\RELEASE_MANIFEST.txt'
+
           Compress-Archive -Path .\server-bundle\* -DestinationPath .\PM-Tracker-EZ-WMF-Server-x64.zip -Force
-          Get-FileHash '.\dist\PM Tracker.exe' -Algorithm SHA256 | ForEach-Object { "PM Tracker.exe SHA256: $($_.Hash)" } | Set-Content .\SHA256SUMS.txt
-          Get-FileHash '.\installer\installer-output\PM-Tracker-Server-Setup.exe' -Algorithm SHA256 | ForEach-Object { "PM-Tracker-Server-Setup.exe SHA256: $($_.Hash)" } | Add-Content .\SHA256SUMS.txt
-          Get-FileHash '.\PM-Tracker-EZ-WMF-Server-x64.zip' -Algorithm SHA256 | ForEach-Object { "PM-Tracker-EZ-WMF-Server-x64.zip SHA256: $($_.Hash)" } | Add-Content .\SHA256SUMS.txt
+
+          Get-FileHash '.\dist\PM Tracker.exe' -Algorithm SHA256 |
+            ForEach-Object { "PM Tracker.exe SHA256: $($_.Hash)" } |
+            Set-Content .\SHA256SUMS.txt
+
+          Get-FileHash '.\installer\installer-output\PM-Tracker-Server-Setup.exe' -Algorithm SHA256 |
+            ForEach-Object { "PM-Tracker-Server-Setup.exe SHA256: $($_.Hash)" } |
+            Add-Content .\SHA256SUMS.txt
+
+          Get-FileHash '.\PM-Tracker-EZ-WMF-Server-x64.zip' -Algorithm SHA256 |
+            ForEach-Object { "PM-Tracker-EZ-WMF-Server-x64.zip SHA256: $($_.Hash)" } |
+            Add-Content .\SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PM-Tracker-Windows-Server
+          name: PM-Tracker-EZ-WMF-Windows-Server
           path: |
             PM-Tracker-EZ-WMF-Server-x64.zip
             installer/installer-output/PM-Tracker-Server-Setup.exe
             SHA256SUMS.txt
-            RELEASE_MANIFEST.txt
             RELEASE_MANIFEST.txt
 
       - name: Publish tagged release
@@ -76,3 +136,4 @@ jobs:
             PM-Tracker-EZ-WMF-Server-x64.zip
             installer/installer-output/PM-Tracker-Server-Setup.exe
             SHA256SUMS.txt
+            RELEASE_MANIFEST.txt
