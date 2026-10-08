@@ -71,3 +71,8 @@ Site-specific data should be imported after deployment using the built-in spread
 ## Repository safety
 
 Do not commit live machine data, PM history, runtime SQLite databases, site configuration, proprietary workbooks, deployment backups, or build output.
+
+
+## EZ / WMF deployment profile
+
+A sanitized deployment profile for IT review is provided under `deployments/EZ-WMF/`. It includes server architecture notes, spreadsheet migration instructions, and example EZ/WMF configuration files. No production machine data, PM history, internal addresses, or runtime databases are included.
