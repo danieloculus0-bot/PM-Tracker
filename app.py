@@ -2,7 +2,7 @@ from flask import Flask, request, redirect, url_for, send_file
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 from io import BytesIO
 import qrcode
@@ -155,6 +155,8 @@ def parse_dateish(value):
         return None
     if isinstance(value, datetime):
         return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
     for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%Y-%m-%d %H:%M:%S"):
         try:
             return datetime.strptime(str(value), fmt)
@@ -2192,6 +2194,7 @@ def export_excel():
 
 if __name__ == "__main__":
     from waitress import serve
+    ensure_data_workbook()
     init_db()
     host = str(SITE_CONFIG.get("host") or "127.0.0.1")
     port = int(SITE_CONFIG.get("port") or 5000)
