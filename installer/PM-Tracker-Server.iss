@@ -23,6 +23,11 @@ Source: "..\PM_Tracker_Import_Template.xlsx"; DestDir: "{app}"; Flags: ignorever
 Source: "..\server\install-server.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\server\uninstall-server.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\deployments\EZ-WMF\README.md"; DestDir: "{app}\docs"; DestName: "EZ-WMF-DEPLOYMENT.md"; Flags: ignoreversion
+Source: "..\deployments\EZ-WMF\IT_REVIEW.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\deployments\EZ-WMF\MIGRATION.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\deployments\EZ-WMF\site_config.EZ.example.json"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\deployments\EZ-WMF\site_config.WMF.example.json"; DestDir: "{app}\docs"; Flags: ignoreversion
 
 [Run]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-server.ps1"" -InstallDir ""{app}"""; Flags: runhidden waituntilterminated
