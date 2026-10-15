@@ -1434,7 +1434,9 @@ def dashboard():
     <section class="panel">
         <div class="panel-head">
             <div><h2>Machine Status</h2></div>
-            <div class="muted">QR printing and Excel export enabled.</div>
+            <div>
+                <a class="action green" href="/clear-due">Clear All Due PMs</a>
+            </div>
         </div>
         <div class="machine-grid">
             {machine_cards if machine_cards else '<div class="empty-box">No machines found.</div>'}
@@ -1450,6 +1452,110 @@ def dashboard():
     </section>
     """
     return layout(f"{SITE_NAME} PM Command Center", body)
+
+
+@app.route("/clear-due", methods=["GET", "POST"])
+def clear_due_tasks():
+    """Record a batch of completed due PMs for selected machines."""
+    init_db()
+    summaries = all_machine_summaries()
+    eligible = [
+        (m, [t for t in m["tasks"] if t["status"] in ("overdue", "today")])
+        for m in summaries
+    ]
+    eligible = [(m, tasks) for m, tasks in eligible if tasks]
+
+    if request.method == "POST":
+        operator = request.form.get("operator_name", "").strip()
+        notes = request.form.get("completion_notes", "").strip()
+        selected_ids = set(request.form.getlist("machine_id"))
+        eligible_ids = {m["machine_id"] for m, tasks in eligible}
+
+        if not operator:
+            return "Operator name is required.", 400
+        if not selected_ids or not selected_ids.issubset(eligible_ids):
+            return "Select machines with due PM tasks.", 400
+        if request.form.get("verified") != "yes":
+            return "Confirm that the selected PM work was actually completed.", 400
+
+        note = "Command Center bulk clear: operator confirmed PM work completed"
+        if notes:
+            note += ": " + notes
+        timestamp = datetime.now().isoformat(timespec="seconds")
+        records = [
+            (m["machine_id"], task["task_id"], operator, note, timestamp)
+            for m, tasks in eligible if m["machine_id"] in selected_ids
+            for task in tasks
+        ]
+        if not records:
+            return "No due PMs selected.", 400
+
+        conn = db()
+        try:
+            conn.executemany("""
+                INSERT INTO completions
+                    (machine_id, task_id, operator_name, completion_notes, completed_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, records)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        return redirect(url_for("dashboard"))
+
+    machine_rows = ""
+    for machine, tasks in eligible:
+        overdue = sum(t["status"] == "overdue" for t in tasks)
+        machine_rows += f"""
+        <label class="detail-line" style="display:block;margin:12px 0;">
+            <input type="checkbox" class="bulk-machine" name="machine_id" value="{html_escape(machine['machine_id'])}">
+            <strong>{html_escape(machine['machine_name'])}</strong>
+            <span class="muted">({len(tasks)} due, {overdue} overdue)</span>
+        </label>
+        """
+    if eligible:
+        machine_selection = f"""
+        <label class="detail-line" style="display:block;margin-bottom:12px;">
+            <input type="checkbox" onclick="document.querySelectorAll('.bulk-machine').forEach(c => c.checked = this.checked)">
+            Select all machines with due PMs
+        </label>
+        {machine_rows}
+        """
+        confirmation = """
+        <label><strong>Completed / Acknowledged By</strong></label>
+        <input type="text" name="operator_name" placeholder="Operator name" required maxlength="120">
+        <br><br>
+        <label><strong>Completion Notes</strong></label>
+        <textarea name="completion_notes" placeholder="Optional notes"></textarea>
+        <br><br>
+        <label class="detail-line" style="display:block;">
+            <input type="checkbox" name="verified" value="yes" required>
+            I confirm the selected PM tasks were actually completed.
+        </label>
+        <br>
+        <button class="tab active" type="submit">Confirm and Clear Selected Due PMs</button>
+        """
+    else:
+        machine_selection = '<div class="empty-box">No PM tasks are overdue or due today.</div>'
+        confirmation = ""
+
+    body = f"""
+    {tabs_html("dashboard")}
+    <section class="panel">
+        <h2>Clear All Due PMs</h2>
+        <div class="detail-line">Select machines whose maintenance work is complete.
+        Only overdue and due-today tasks are included; future PMs stay scheduled.</div>
+        <form method="post">
+            {machine_selection}
+            <br>
+            {confirmation}
+            <a class="action silver" href="/">Cancel</a>
+        </form>
+    </section>
+    """
+    return layout("Clear All Due PMs", body)
 
 
 @app.route("/machine/<machine_id>")
