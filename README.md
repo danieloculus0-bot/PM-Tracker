@@ -18,6 +18,12 @@ Windows-friendly preventive maintenance tracker for manufacturing and facilities
 - PyInstaller Windows executable build
 - Windows Server installer pipeline
 
+## Lockout/tagout (LOTO) guidance
+
+PM Tracker uses the existing `PM_Tasks` **Safety Notes** column to identify task-specific hazards and reference approved site and machine-specific LOTO instructions. For tasks involving hazardous-energy exposure, populate Safety Notes with the applicable procedure identifier, isolation reference, and any task-specific precautions. Do not use a generic placeholder as a substitute for verified machine-specific instructions.
+
+The machine task detail page displays a conditional-use LOTO reminder. It does not certify isolation, authorize an employee, or verify zero energy. Authorized personnel must perform the required isolation and verification before work begins. Site-specific LOTO documentation remains controlled outside this generic source repository.
+
 ## Runtime data
 
 Site data is deliberately kept outside the source repository and outside the executable:
