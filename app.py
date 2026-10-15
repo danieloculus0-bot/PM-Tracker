@@ -1478,6 +1478,7 @@ def machine(machine_id):
             <div class="detail-line">Responsible Role: {html_escape(task["responsible_role"]) if task["responsible_role"] else "Not listed"}</div>
             <div class="detail-line">Estimated Minutes: {html_escape(task["estimated_minutes"]) if task["estimated_minutes"] else "Not listed"}</div>
             <div class="detail-line">Safety Notes: {html_escape(task["safety_notes"]) if task["safety_notes"] else "None"}</div>
+            <div class="detail-line">LOTO: For servicing with hazardous-energy exposure, follow the site LOTO procedure and the approved machine-specific isolation instructions before starting work. Refer to Safety Notes for task-specific requirements. This reminder does not replace physical isolation or verification.</div>
 
             <form method="post" action="/complete-task">
                 <input type="hidden" name="machine_id" value="{html_escape(target["machine_id"])}">
