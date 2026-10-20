@@ -82,3 +82,9 @@ Do not commit live machine data, PM history, runtime SQLite databases, site conf
 ## EZ / WMF deployment profile
 
 A sanitized deployment profile for IT review is provided under `deployments/EZ-WMF/`. It includes server architecture notes, spreadsheet migration instructions, and example EZ/WMF configuration files. No production machine data, PM history, internal addresses, or runtime databases are included.
+
+## Repository audit note (2026-10-20)
+
+**Status: independently useful preventive-maintenance application.** QR machine pages, scheduling, completion history, import/export, maintenance requests and server packaging are represented in source. Both October 15 PM smoke and EZ/WMF server-release workflows passed, but **workflow success does not prove an individual site has installed or safely configured a live server**. Generic LOTO notes cannot establish machine-specific isolation, employee authorization or verified zero energy. An Axiom source snapshot or intended PM integration must not be represented as a shared live database.
+
+[Portfolio audit](https://github.com/danieloculus0-bot/Axiom_Beta/blob/main/docs/PORTFOLIO_AUDIT_2026-10-20.md).
