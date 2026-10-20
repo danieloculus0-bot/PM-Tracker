@@ -1,90 +1,37 @@
-# PM Tracker
+# PM-Tracker
 
-Windows-friendly preventive maintenance tracker for manufacturing and facilities environments.
+Standalone maintenance scheduling and work-completion tracking application for equipment and facility operations. It can run without Axiom or JobBOSS².
 
-## Features
+## Current build state
 
-- Machine and asset tracking
-- Preventive maintenance scheduling
-- PM completion logging
-- Bulk acknowledge / clear-all PM workflow
-- Maintenance request and work-order tracking
-- QR codes for machine pages
-- Excel export
-- Excel import / update workflow
-- Downloadable blank import template
-- Configurable site branding, weather, host, and port
-- Waitress production WSGI server
-- PyInstaller Windows executable build
-- Windows Server installer pipeline
+**Reviewed:** 2026-10-20 · **Inspected main:** `10e8ba3959b5`.
 
-## Lockout/tagout (LOTO) guidance
+- [PM Tracker smoke](https://github.com/danieloculus0-bot/PM-Tracker/actions/runs/39489953748) — **Passed** at inspected `main`.
+- [Build EZ-WMF Windows Server Release](https://github.com/danieloculus0-bot/PM-Tracker/actions/runs/39489953623) — **Passed** at inspected `main`.
 
-PM Tracker uses the existing `PM_Tasks` **Safety Notes** column to identify task-specific hazards and reference approved site and machine-specific LOTO instructions. For tasks involving hazardous-energy exposure, populate Safety Notes with the applicable procedure identifier, isolation reference, and any task-specific precautions. Do not use a generic placeholder as a substitute for verified machine-specific instructions.
+Use [live Actions](https://github.com/danieloculus0-bot/PM-Tracker/actions) for changes after this dated verification.
 
-The machine task detail page displays a conditional-use LOTO reminder. It does not certify isolation, authorize an employee, or verify zero energy. Authorized personnel must perform the required isolation and verification before work begins. Site-specific LOTO documentation remains controlled outside this generic source repository.
+## Working implementation
 
-## Runtime data
+- Machine inventory, PM task scheduling, completion history, work requests, QR machine pages and data import/export.
+- Windows-friendly server and installer packaging, Waitress-based runtime and optional branded site configuration.
+- Explicit machine-task safety notes and conditional lockout/tagout reminders; app logic is not machine isolation.
 
-Site data is deliberately kept outside the source repository and outside the executable:
+## Run and test
 
-- `pm_data.xlsx` contains Machines, PM_Tasks, and Completion_Log sheets.
-- `pm_app.db` contains runtime completion history and maintenance requests.
-- `site_config.json` contains site-specific settings.
+Use the [archived full run/deployment guide](docs/archive/README_2026-10-20_before_refresh.md) for local Flask launch, Windows executable/Server setup, site data import and configuration. Test the actual target-machine work instructions before site use.
 
-If `pm_data.xlsx` does not exist, PM Tracker creates a blank workbook automatically.
+## Limitations
 
-## Importing existing PM data
+- Green packaging tests do not establish a live secured site-server installation or data migration from Excel.
+- LOTO reminders do not isolate machinery, prove zero energy, verify training or authorize hazardous maintenance.
+- Axiom may contain PM concepts/source snapshots but is not automatically reading from this standalone tracker.
 
-Open **Import / Update Data** in the application.
+## Next steps
 
-The importer accepts an `.xlsx` workbook containing any of these sheets:
+Verify site configuration, database integrity, machine-specific safety references and an explicit optional Axiom integration.
 
-- `Machines`
-- `PM_Tasks`
-- `Completion_Log`
+## Documentation
 
-Machines merge by `Machine ID`. PM tasks merge by `Task ID`. Existing machine/task rows are updated rather than blindly duplicated. Completion history is checked before insertion.
-
-Use **Blank Template** in the application to download `PM_Tracker_Import_Template.xlsx` with the supported columns.
-
-## Site configuration
-
-Copy `site_config.example.json` to `site_config.json` and edit it for the deployment. For server access, use `0.0.0.0` as the host and have IT provide a stable DNS name or reserved/static address.
-
-## Local run
-
-```powershell
-python -m pip install -r requirements.txt
-python .\app.py
-```
-
-## Windows executable
-
-```powershell
-python -m pip install pyinstaller
-python -m PyInstaller --noconfirm --clean --onefile --name "PM Tracker" .\app.py
-```
-
-## Windows Server deployment
-
-GitHub Actions builds a generic Windows Server deployment bundle and installer. The generic build contains no site-specific asset data or history.
-
-The server installer is designed to deploy under `C:\ProgramData\PM Tracker`, preserve runtime data during upgrades, register PM Tracker to start automatically, and open the configured TCP port in Windows Firewall.
-
-Site-specific data should be imported after deployment using the built-in spreadsheet importer, or copied into the deployment folder by authorized IT staff.
-
-## Repository safety
-
-Do not commit live machine data, PM history, runtime SQLite databases, site configuration, proprietary workbooks, deployment backups, or build output.
-
-
-## EZ / WMF deployment profile
-
-A sanitized deployment profile for IT review is provided under `deployments/EZ-WMF/`. It includes server architecture notes, spreadsheet migration instructions, and example EZ/WMF configuration files. No production machine data, PM history, internal addresses, or runtime databases are included.
-
-## Repository audit note (2026-10-20)
-
-**Status: independently useful preventive-maintenance application.** QR machine pages, scheduling, completion history, import/export, maintenance requests and server packaging are represented in source. Both October 15 PM smoke and EZ/WMF server-release workflows passed, but **workflow success does not prove an individual site has installed or safely configured a live server**. Generic LOTO notes cannot establish machine-specific isolation, employee authorization or verified zero energy. An Axiom source snapshot or intended PM integration must not be represented as a shared live database.
-
-[Portfolio audit](https://github.com/danieloculus0-bot/Axiom_Beta/blob/main/docs/PORTFOLIO_AUDIT_2026-10-20.md).
+- [Axiom ERP target](https://github.com/danieloculus0-bot/Axiom_Beta)
+- [Full historical README, including original setup detail](docs/archive/README_2026-10-20_before_refresh.md)
