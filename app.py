@@ -1707,6 +1707,10 @@ def complete_task():
     if not machine_id or not task_id or not operator_name:
         return "Missing required fields.", 400
 
+    if machine_id not in machine_lookup() or not any(
+        t["machine_id"] == machine_id and t["task_id"] == task_id for t in read_tasks()
+    ):
+        return "Unknown machine or task.", 404
     add_completion(machine_id, task_id, operator_name, completion_notes)
     return redirect(url_for("machine", machine_id=machine_id))
 
