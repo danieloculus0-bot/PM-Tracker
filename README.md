@@ -35,3 +35,34 @@ Verify site configuration, database integrity, machine-specific safety reference
 
 - [Axiom ERP target](https://github.com/danieloculus0-bot/Axiom_Beta)
 - [Full historical README, including original setup detail](docs/archive/README_2026-10-20_before_refresh.md)
+
+
+## Authenticated operation (security remediation)
+
+**Fail closed:** the web application returns HTTP 503 until both
+\`PM_SESSION_SECRET\` (a random secret of at least 32 characters) and
+\`PM_USERS_JSON\` (server-side accounts) are configured. There is no built-in
+user, default password, or anonymous editing. Roles: \`viewer\` (read only),
+\`operator\` (record PM work, submit requests), and \`admin\` (also imports
+workbooks and closes maintenance requests). Accounts are provisioned by an
+administrator, not by client-supplied usernames.
+
+Generate each password hash locally using
+\`python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash(input('Password: ')))"\`.
+Configure \`PM_USERS_JSON\` as a JSON object such as
+\`{"technician":{"password_hash":"<output from command>","role":"operator"}}\`.
+Supply this JSON and the distinct \`PM_SESSION_SECRET\` through process environment
+secrets. Do not commit credentials or unhashed passwords.
+
+Visit \`/login\` to authenticate. Every POST requires the form's hidden CSRF
+token. Completion and request submission identities are derived from the
+authenticated server session; submitted \`operator_name\` and \`submitted_by\`
+values are not trusted.
+
+The sample site binds only to \`127.0.0.1\`. When exposing the application to
+a network, place it behind a TLS-terminating reverse proxy and explicitly
+set \`PM_TLS_TERMINATED=1\`; this also enables Secure session cookies.
+Do not expose the raw HTTP listener on a public network. Recheck user
+provisioning and the reverse proxy's access controls before deployment.
+The application's login is not an enterprise identity-provider integration;
+future SSO and session-expiration controls remain deployment work.

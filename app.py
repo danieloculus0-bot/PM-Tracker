@@ -1,4 +1,5 @@
 from flask import Flask, request, redirect, url_for, send_file
+from pm_auth import install_auth, current_user
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill
 import sqlite3
@@ -8,10 +9,12 @@ from io import BytesIO
 import qrcode
 import qrcode.image.svg
 import json
+import os
 import urllib.request
 import urllib.parse
 
 app = Flask(__name__)
+install_auth(app)
 
 BASE_DIR = Path.cwd()
 EXCEL_FILE = BASE_DIR / "pm_data.xlsx"
@@ -1466,7 +1469,7 @@ def clear_due_tasks():
     eligible = [(m, tasks) for m, tasks in eligible if tasks]
 
     if request.method == "POST":
-        operator = request.form.get("operator_name", "").strip()
+        operator = current_user()
         notes = request.form.get("completion_notes", "").strip()
         selected_ids = set(request.form.getlist("machine_id"))
         eligible_ids = {m["machine_id"] for m, tasks in eligible}
@@ -1640,7 +1643,7 @@ def clear_all_machine_tasks(machine_id):
         return "<h1>Machine not found</h1>", 404
     tasks = target["tasks"]
     if request.method == "POST":
-        operator_name = request.form.get("operator_name", "").strip()
+        operator_name = current_user()
         completion_notes = request.form.get("completion_notes", "").strip()
         if not operator_name:
             return "Completed / acknowledged by is required.", 400
@@ -1698,12 +1701,16 @@ def complete_task():
     init_db()
     machine_id = request.form.get("machine_id", "").strip()
     task_id = request.form.get("task_id", "").strip()
-    operator_name = request.form.get("operator_name", "").strip()
+    operator_name = current_user()
     completion_notes = request.form.get("completion_notes", "").strip()
 
     if not machine_id or not task_id or not operator_name:
         return "Missing required fields.", 400
 
+    if machine_id not in machine_lookup() or not any(
+        t["machine_id"] == machine_id and t["task_id"] == task_id for t in read_tasks()
+    ):
+        return "Unknown machine or task.", 404
     add_completion(machine_id, task_id, operator_name, completion_notes)
     return redirect(url_for("machine", machine_id=machine_id))
 
@@ -1715,7 +1722,7 @@ def maintenance():
     selected_machine_id = request.args.get("machine_id", "").strip()
 
     if request.method == "POST":
-        submitted_by = request.form.get("submitted_by", "").strip()
+        submitted_by = current_user()
         machine_id = request.form.get("machine_id", "").strip()
         location = request.form.get("location", "").strip()
         priority = request.form.get("priority", "Medium").strip()
@@ -2304,6 +2311,8 @@ if __name__ == "__main__":
     ensure_data_workbook()
     init_db()
     host = str(SITE_CONFIG.get("host") or "127.0.0.1")
+    if host not in {"127.0.0.1", "localhost", "::1"} and os.environ.get("PM_TLS_TERMINATED") != "1":
+        raise RuntimeError("Network deployment requires a TLS-terminating reverse proxy and PM_TLS_TERMINATED=1")
     port = int(SITE_CONFIG.get("port") or 5000)
     print(f"PM Tracker starting on http://{host}:{port}")
     serve(app, host=host, port=port, threads=8)
