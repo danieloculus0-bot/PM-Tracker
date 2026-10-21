@@ -29,14 +29,45 @@ jobs:
           os.chdir(root)
           sys.path.insert(0, os.environ["GITHUB_WORKSPACE"])
 
+          from werkzeug.security import generate_password_hash
+          import re
+          import json
+          os.environ["PM_SESSION_SECRET"] = "ci-signing-key-at-least-32-characters-unused-elsewhere"
+          os.environ["PM_USERS_JSON"] = json.dumps({
+              "cioperator": {"password_hash": generate_password_hash("ci-only-pass"), "role": "operator"},
+              "civiewer": {"password_hash": generate_password_hash("ci-viewer-pass"), "role": "viewer"},
+          })
           import app as pm
 
           pm.init_db()
           client = pm.app.test_client()
 
+          # Unauthenticated POSTs never write completions, even when an actor is supplied.
+          denied = client.post("/complete-task", data={"machine_id": "M1", "task_id": "T1", "operator_name": "forged"})
+          assert denied.status_code == 401, denied.status_code
+          with pm.db() as conn:
+              assert conn.execute("SELECT COUNT(*) FROM completions").fetchone()[0] == 0
+
+          login_page = client.get("/login")
+          assert login_page.status_code == 200
+          csrf = re.search(r'name="_csrf" value="([^"]+)"', login_page.get_data(as_text=True)).group(1)
+          logged_in = client.post("/login", data={"username": "cioperator", "password": "ci-only-pass", "_csrf": csrf})
+          assert logged_in.status_code == 302
+
           for route in ["/", "/import", "/template.xlsx", "/export.xlsx"]:
               response = client.get(route)
               assert response.status_code == 200, (route, response.status_code)
+
+          # CSRF is required for all mutation endpoints.
+          assert client.post("/complete-task", data={"machine_id": "M1", "task_id": "T1", "operator_name": "forged"}).status_code == 403
+          # Operators cannot import an entire workbook.
+          assert client.post("/import", data={"_csrf": csrf}).status_code == 403
+          # An invented task is rejected before writing a false completion.
+          with client.session_transaction() as signed_session:
+              csrf = signed_session["_csrf"]
+          assert client.post("/complete-task", data={"machine_id": "M1", "task_id": "T1", "operator_name": "forged", "_csrf": csrf}).status_code == 404
+          with pm.db() as conn:
+              assert conn.execute("SELECT COUNT(*) FROM completions").fetchone()[0] == 0
 
           wb = pm.get_workbook()
           assert {"Machines", "PM_Tasks", "Completion_Log"}.issubset(set(wb.sheetnames))
