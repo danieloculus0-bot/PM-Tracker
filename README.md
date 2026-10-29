@@ -1,13 +1,13 @@
 # PM-Tracker
 
-Standalone maintenance scheduling and work-completion tracking application for equipment and facility operations. It can run without Axiom or JobBOSS².
+Standalone maintenance scheduling and work-completion tracking application for equipment and facility operations. It can operate independently of external business systems.
 
 ## Current build state
 
 **Reviewed:** 2026-10-20 · **Inspected main:** `10e8ba3959b5`.
 
 - [PM Tracker smoke](https://github.com/danieloculus0-bot/PM-Tracker/actions/runs/39489953748) — **Passed** at inspected `main`.
-- [Build company Windows Server Release](https://github.com/danieloculus0-bot/PM-Tracker/actions/runs/39489953623) — **Passed** at inspected `main`.
+- [Build Windows Server Release](https://github.com/danieloculus0-bot/PM-Tracker/actions/runs/39489953623) — **Passed** at inspected `main`.
 
 Use [live Actions](https://github.com/danieloculus0-bot/PM-Tracker/actions) for changes after this dated verification.
 
