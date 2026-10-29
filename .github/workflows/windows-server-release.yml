@@ -1,4 +1,4 @@
-name: Build EZ-WMF Windows Server Release
+name: Build Generic Windows Server Release
 
 on:
   push:
@@ -78,11 +78,10 @@ jobs:
         shell: pwsh
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" .\installer\PM-Tracker-Server.iss'
 
-      - name: Assemble sanitized EZ-WMF server bundle
+      - name: Assemble sanitized Generic server bundle
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force .\server-bundle | Out-Null
-          New-Item -ItemType Directory -Force .\server-bundle\EZ-WMF-Deployment | Out-Null
 
           Copy-Item '.\dist\PM Tracker.exe' '.\server-bundle\PM Tracker.exe'
           Copy-Item '.\site_config.example.json' '.\server-bundle\site_config.example.json'
@@ -90,10 +89,9 @@ jobs:
           Copy-Item '.\server\install-server.ps1' '.\server-bundle\install-server.ps1'
           Copy-Item '.\server\uninstall-server.ps1' '.\server-bundle\uninstall-server.ps1'
           Copy-Item '.\README.md' '.\server-bundle\README.md'
-          Copy-Item '.\deployments\EZ-WMF\*' '.\server-bundle\EZ-WMF-Deployment\' -Recurse
 
           @(
-            "PM Tracker EZ/WMF Windows Server Release"
+            "PM Tracker Windows Server Release"
             "Commit: $env:GITHUB_SHA"
             "Build: $env:GITHUB_RUN_NUMBER"
             "Sanitized: yes"
@@ -105,7 +103,7 @@ jobs:
 
           Copy-Item '.\RELEASE_MANIFEST.txt' '.\server-bundle\RELEASE_MANIFEST.txt'
 
-          Compress-Archive -Path .\server-bundle\* -DestinationPath .\PM-Tracker-EZ-WMF-Server-x64.zip -Force
+          Compress-Archive -Path .\server-bundle\* -DestinationPath .\PM-Tracker-Generic-Server-x64.zip -Force
 
           Get-FileHash '.\dist\PM Tracker.exe' -Algorithm SHA256 |
             ForEach-Object { "PM Tracker.exe SHA256: $($_.Hash)" } |
@@ -115,15 +113,15 @@ jobs:
             ForEach-Object { "PM-Tracker-Server-Setup.exe SHA256: $($_.Hash)" } |
             Add-Content .\SHA256SUMS.txt
 
-          Get-FileHash '.\PM-Tracker-EZ-WMF-Server-x64.zip' -Algorithm SHA256 |
-            ForEach-Object { "PM-Tracker-EZ-WMF-Server-x64.zip SHA256: $($_.Hash)" } |
+          Get-FileHash '.\PM-Tracker-Generic-Server-x64.zip' -Algorithm SHA256 |
+            ForEach-Object { "PM-Tracker-Generic-Server-x64.zip SHA256: $($_.Hash)" } |
             Add-Content .\SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PM-Tracker-EZ-WMF-Windows-Server
+          name: PM-Tracker-Generic-Windows-Server
           path: |
-            PM-Tracker-EZ-WMF-Server-x64.zip
+            PM-Tracker-Generic-Server-x64.zip
             installer/installer-output/PM-Tracker-Server-Setup.exe
             SHA256SUMS.txt
             RELEASE_MANIFEST.txt
@@ -133,7 +131,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            PM-Tracker-EZ-WMF-Server-x64.zip
+            PM-Tracker-Generic-Server-x64.zip
             installer/installer-output/PM-Tracker-Server-Setup.exe
             SHA256SUMS.txt
             RELEASE_MANIFEST.txt
