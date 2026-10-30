@@ -37,7 +37,7 @@ jobs:
           python3 - <<'PYCODE'
           import re, subprocess, sys
           patterns = [bytes.fromhex(s) for s in [ "283f6929283f3c215b612d7a302d395d29283f3a57617368696e67746f6e7c576973636f6e73696e295b5c732e5f2d5d2b4d6574616c5b5c732e5f2d5d2b46616272696361746f72733f283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a4661627269636174696e67283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a4661627269636174696f6e283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a466162733f283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a574d46283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29574d46283f215b612d7a302d395d29" ]]
-          rex = re.compile(b'|'.join(b'(?:' + p + b')' for p in patterns))
+          rex = re.compile(b'|'.join(b'(?:' + p[4:] + b')' for p in patterns), re.I)
           def cmd(*argv):
               return subprocess.check_output(list(argv), stderr=subprocess.DEVNULL)
           log = cmd('git','log','--all','--format=%B')
