@@ -1,0 +1,61 @@
+name: One-time confidential name history rewrite
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-time-company-history-rewrite.yml
+permissions:
+  contents: write
+jobs:
+  rewrite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Rewrite employer identifiers across branches and tags
+        env:
+          GH_TOKEN: \${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m venv /tmp/history-filter-venv
+          /tmp/history-filter-venv/bin/pip -q install 'git-filter-repo>=2.47.0'
+          export PATH="/tmp/history-filter-venv/bin:$PATH"
+          cat > /tmp/replacements.txt <<'ENDTERMS'
+          regex:(?i)(?<![a-z0-9])(?:Washington|Wisconsin)[\s._-]+Metal[\s._-]+Fabricators(?![a-z0-9])==>company
+          regex:(?i)(?<![a-z0-9])EZ[\s._-]*Fabricating(?![a-z0-9])==>company
+          regex:(?i)(?<![a-z0-9])EZ[\s._-]*Fab(?![a-z0-9])==>company
+          regex:(?i)(?<![a-z0-9])EZ[\s._-]*company(?![a-z0-9])==>company
+          regex:(?i)(?<![a-z0-9])company(?![a-z0-9])==>company
+          ENDTERMS
+          git clone --quiet --mirror "https://github.com/\${GITHUB_REPOSITORY}.git" /tmp/history.git
+          cd /tmp/history.git
+          old_main="$(git rev-parse refs/heads/main)"
+          echo "HISTORY_AUDIT repository=\${GITHUB_REPOSITORY} old_main=\${old_main}"
+          git filter-repo --force --sensitive-data-removal --prune-empty never \
+            --replace-text /tmp/replacements.txt --replace-message /tmp/replacements.txt \
+            --filename-callback '
+          import re
+          patterns = (
+              rb"(?i)(?<![a-z0-9])(?:Washington|Wisconsin)[\s._-]+Metal[\s._-]+Fabricators(?![a-z0-9])",
+              rb"(?i)(?<![a-z0-9])EZ[\s._-]*Fabricating(?![a-z0-9])",
+              rb"(?i)(?<![a-z0-9])EZ[\s._-]*Fab(?![a-z0-9])",
+              rb"(?i)(?<![a-z0-9])EZ[\s._-]*company(?![a-z0-9])",
+              rb"(?i)(?<![a-z0-9])company(?![a-z0-9])",
+          )
+          for pattern in patterns:
+              filename = re.sub(pattern, b"company", filename)
+          return filename
+          '
+          new_main="$(git rev-parse refs/heads/main)"
+          echo "HISTORY_AUDIT new_main=\${new_main}"
+          if git log --all --format=%B | grep -Eiq 'EZ[ _.-]*(Fabricating|Fab|company)|Washington[ _.-]+Metal[ _.-]+Fabricators|Wisconsin[ _.-]+Metal[ _.-]+Fabricators|(^|[^[:alnum:]])company([^[:alnum:]]|$)'; then
+            echo "HISTORY_AUDIT FAIL commit messages still contain forbidden names"
+            exit 1
+          fi
+          echo "HISTORY_AUDIT PR_ref_changes=$(grep -Ec '^refs/pull/.*/head$' filter-repo/changed-refs || true)"
+          echo "HISTORY_AUDIT changed_refs=$(wc -l < filter-repo/changed-refs || true)"
+          git remote add origin "https://github.com/\${GITHUB_REPOSITORY}.git"
+          gh auth setup-git
+          git push --force origin 'refs/heads/*:refs/heads/*'
+          if git show-ref --tags --quiet; then git push --force origin 'refs/tags/*:refs/tags/*'; fi
+          echo "HISTORY_REWRITE_PUSHED repository=\${GITHUB_REPOSITORY} new_main=\${new_main}"
