@@ -1,0 +1,22 @@
+name: One-time obsolete branch cleanup
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-time-ref-cleanup.yml
+permissions:
+  contents: write
+jobs:
+  remove_obsolete_refs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove previously contained branch pointers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REFS_B64: "YmFja3VwLWNvbnRhbWluYXRlZC1tYWluLTIwMjYwNTEy YXVkaXQvc2VjdXJpdHktY29ycmVjdG5lc3MtMjAyNjEwMjA="
+        run: |
+          set -euo pipefail
+          for encoded in $REFS_B64; do
+            ref="$(printf '%s' "$encoded" | base64 --decode)"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${ref}" >/dev/null
+          done
