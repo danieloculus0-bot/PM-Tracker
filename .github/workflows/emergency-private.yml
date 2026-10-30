@@ -1,0 +1,18 @@
+name: Emergency repository privacy containment
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/emergency-private.yml]
+permissions:
+  contents: write
+jobs:
+  private:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Attempt to make this repository private immediately
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY" -F private=true --jq '.private'
