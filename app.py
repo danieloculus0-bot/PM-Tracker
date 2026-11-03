@@ -1704,6 +1704,10 @@ def complete_task():
     if not machine_id or not task_id or not operator_name:
         return "Missing required fields.", 400
 
+    # A forged or stale form must not record a completed PM for an unknown target.
+    if not any(task["machine_id"] == machine_id and task["task_id"] == task_id for task in read_tasks()):
+        return "Unknown machine/task combination.", 404
+
     add_completion(machine_id, task_id, operator_name, completion_notes)
     return redirect(url_for("machine", machine_id=machine_id))
 
