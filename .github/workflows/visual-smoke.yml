@@ -1,0 +1,154 @@
+name: PM Tracker visual smoke (fictional data)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/visual-smoke.yml'
+      - 'app.py'
+      - 'pm_import.py'
+
+permissions:
+  contents: read
+
+jobs:
+  visual-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install app dependencies
+        run: pip install -r requirements.txt
+      - name: Serve actual Flask app and capture real Chrome screenshots
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          import time
+          import shutil
+          import sqlite3
+          import tempfile
+          import threading
+          import subprocess
+          import urllib.request
+          from pathlib import Path
+          from datetime import datetime, timedelta
+          from werkzeug.serving import make_server
+
+          project = os.environ["GITHUB_WORKSPACE"]
+          data_dir = Path(tempfile.mkdtemp(prefix="pm-visual-synthetic-"))
+          os.chdir(data_dir)
+          sys.path.insert(0, project)
+
+          import app as pm
+
+          pm.ensure_data_workbook()
+          pm.init_db()
+
+          wb = pm.get_workbook()
+          machines = [
+              ("DEMO-101", "Hydraulic Press", "Forming", "Bay A", "Fictional Mfg", "HP-200"),
+              ("DEMO-102", "Vertical Machining Center", "Machining", "Bay B", "Fictional Mfg", "VM-400"),
+              ("DEMO-103", "Air Compressor", "Utilities", "Mechanical Room", "Fictional Mfg", "AC-80"),
+              ("DEMO-104", "Powder Coating Oven", "Finishing", "Bay C", "Fictional Mfg", "PC-500"),
+          ]
+          for id_, name, dept, location, maker, model in machines:
+              wb["Machines"].append([id_, name, dept, location, maker, model, "", "", "", "Medium", "Synthetic example only", "Y"])
+          tasks = [
+              ("DEMO-T01", "DEMO-101", "Hydraulic fluid inspection", 7),
+              ("DEMO-T02", "DEMO-101", "Guard and safety checks", 30),
+              ("DEMO-T03", "DEMO-102", "Spindle lubrication", 7),
+              ("DEMO-T04", "DEMO-102", "Clean coolant filters", 14),
+              ("DEMO-T05", "DEMO-103", "Drain condensate", 1),
+              ("DEMO-T06", "DEMO-104", "Check temperature controls", 30),
+          ]
+          for tid, mid, name, interval in tasks:
+              wb["PM_Tasks"].append([tid, mid, name, "Fictional inspection task", "Days", interval, "Maintenance", 20, "Follow real site procedures", "Y"])
+          wb.save(pm.EXCEL_FILE)
+          wb.close()
+
+          now = datetime.now()
+          conn = sqlite3.connect(pm.DB_FILE)
+          for mid, tid, by, days_ago in [
+              ("DEMO-101", "DEMO-T01", "Example Operator", 2),
+              ("DEMO-102", "DEMO-T03", "Example Mechanic", 10),
+              ("DEMO-102", "DEMO-T04", "Example Operator", 6),
+              ("DEMO-103", "DEMO-T05", "Example Mechanic", 2),
+              ("DEMO-104", "DEMO-T06", "Example Operator", 12),
+          ]:
+              stamp = (now - timedelta(days=days_ago)).isoformat(timespec="seconds")
+              conn.execute(
+                  "INSERT INTO completions (machine_id,task_id,operator_name,completion_notes,completed_at) VALUES (?,?,?,?,?)",
+                  (mid,tid,by,"Fictional test completion",stamp),
+              )
+          conn.execute(
+              """INSERT INTO maintenance_requests
+                 (request_number,submitted_by,submitted_at,machine_id,machine_name,location,
+                  priority,description,status,assigned_to,resolution_notes,closed_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+              ("DEMO-WO-001", "Example Operator", now.isoformat(timespec="seconds"),
+               "DEMO-103", "Air Compressor", "Mechanical Room", "Medium",
+               "Inspect air line fitting (synthetic test request)", "Open", "Example Mechanic", "", None),
+          )
+          conn.commit()
+          conn.close()
+
+          server = make_server("127.0.0.1", 0, pm.app)
+          port = server.server_port
+          thread = threading.Thread(target=server.serve_forever, daemon=True)
+          thread.start()
+          out = Path(project) / "visual-previews"
+          out.mkdir(exist_ok=True)
+
+          chrome = (shutil.which("google-chrome") or shutil.which("chromium")
+                    or shutil.which("chromium-browser"))
+          if not chrome:
+              raise RuntimeError("Headless Chrome not available on runner")
+
+          pages = [
+              ("01_dashboard.png", "/"),
+              ("02_machine_detail.png", "/machine/DEMO-101"),
+              ("03_maintenance_requests.png", "/maintenance"),
+              ("04_manual_entry.png", "/manual-entry"),
+              ("05_excel_import.png", "/import"),
+          ]
+          results = []
+          try:
+              for filename, route in pages:
+                  url = f"http://127.0.0.1:{port}{route}"
+                  with urllib.request.urlopen(url, timeout=20) as response:
+                      html = response.read().decode("utf-8")
+                      assert response.status == 200 and "PM" in html, (route, response.status)
+                  target = out / filename
+                  cmd = [
+                      chrome, "--headless=new", "--no-sandbox", "--disable-gpu",
+                      "--disable-dev-shm-usage", "--hide-scrollbars",
+                      "--force-device-scale-factor=1", "--window-size=1560,1120",
+                      "--virtual-time-budget=2000", f"--screenshot={target}", url,
+                  ]
+                  result = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+                  if result.returncode != 0 or not target.exists() or target.stat().st_size < 10000:
+                      raise RuntimeError(f"Chrome screenshot failed for {route}: {result.stderr[-800:]}")
+                  results.append(f"{route} | HTTP 200 | {filename} | {target.stat().st_size} bytes")
+          finally:
+              server.shutdown()
+              thread.join(timeout=5)
+          (out / "TEST_RESULTS.txt").write_text(
+              "PM Tracker actual Flask application screenshot smoke\n"
+              + f"Source commit: {os.environ['GITHUB_SHA']}\n"
+              + "All machinery and operator data are fictional.\n"
+              + "\n".join(results) + "\n",
+              encoding="utf-8",
+          )
+          print("\n".join(results))
+          PY
+      - name: Upload synthetic UI screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: PM-Tracker-Live-UI-Screenshots
+          path: visual-previews/
+          if-no-files-found: error
