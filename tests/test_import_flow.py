@@ -73,6 +73,27 @@ class GenericImportTests(unittest.TestCase):
         self.assertEqual(requests, [("GEN-W100", "Synthetic issue", "Closed")])
         conn.close()
 
+        # Date-only records retain the historical date without an invented time.
+        no_time = create_template()
+        no_time["Completion_Log"].append([
+            "GEN-C101", "GEN-M100", "GEN-T100", "Another Synthetic User",
+            datetime(2026, 10, 21), None, "Date only", "Pass",
+        ])
+        fileobj = io.BytesIO()
+        no_time.save(fileobj)
+        no_time.close()
+        response = self.client.post("/import", data={
+            "file": (io.BytesIO(fileobj.getvalue()), "date-only.xlsx")
+        })
+        self.assertEqual(response.status_code, 200, response.data.decode()[:500])
+        conn = sqlite3.connect(self.pm.DB_FILE)
+        stamp = conn.execute(
+            "SELECT completed_at FROM completions WHERE operator_name=?",
+            ("Another Synthetic User",)
+        ).fetchone()[0]
+        self.assertEqual(stamp, "2026-10-21")
+        conn.close()
+
     def test_manual_entries(self):
         r = self.client.post("/manual-entry", data={
             "record_type": "machine", "machine_id": "GEN-M200",
