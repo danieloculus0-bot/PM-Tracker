@@ -17,7 +17,7 @@ These sheets can be imported separately; names and first-row headers must match:
 | `Completion_Log` | Machine ID, Task ID, Completed By, Completion Date | Adds historical completions to SQLite and the workbook; optional Completion Time and Notes |
 | `Maintenance_Requests` | Request Number, Submitted By, Submitted At, Description | Inserts historical requests if Request Number does not already exist |
 
-Other fields are optional. For completion dates, use `YYYY-MM-DD`. Optional time uses `HH:MM` (24-hour) or `HH:MM:SS`. Without time, the importer uses **12:00** on the entered historical date, not today's timestamp. Keep original evidence and explain delayed entries in Notes as needed.
+Other fields are optional. For completion dates, use `YYYY-MM-DD`. Optional time uses `HH:MM` (24-hour) or `HH:MM:SS`. Without a time, the importer saves a **date-only** value without inventing a clock time. Keep original evidence and explain delayed entries in Notes as needed.
 
 ### Load order
 
