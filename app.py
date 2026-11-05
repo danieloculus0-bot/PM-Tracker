@@ -2433,7 +2433,50 @@ def manual_entry():
     )
     body = f"""
     {tabs_html()}
-    <section class="panel">
+    <style>
+        .pm-manual-panel form {{
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 17px 20px;
+            margin-top: 20px;
+            align-items: start;
+        }}
+        .pm-manual-panel form label {{
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            min-width: 0;
+            color: #a8b3cc;
+            font-size: 14px;
+        }}
+        .pm-manual-panel form input:not([type="hidden"]),
+        .pm-manual-panel form select,
+        .pm-manual-panel form textarea {{
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 48px;
+            padding: 12px 14px;
+            background: #101d38;
+            color: #f3f7ff;
+            border: 1px solid rgba(147, 173, 224, 0.28);
+            border-radius: 12px;
+            font: inherit;
+            line-height: 1.3;
+        }}
+        .pm-manual-panel form textarea {{
+            min-height: 94px;
+            resize: vertical;
+        }}
+        .pm-manual-panel form button {{
+            justify-self: start;
+            grid-column: 1 / -1;
+        }}
+        .pm-manual-panel form input[type="hidden"] {{ display: none; }}
+        @media (max-width: 760px) {{
+            .pm-manual-panel form {{ grid-template-columns: 1fr; }}
+        }}
+    </style>
+    <section class="panel pm-manual-panel">
         <div class="panel-head"><div><h2>Manual Data Entry</h2>
         <div class="muted">Import a machine register first or add machines and PM tasks here.</div></div></div>
         <div class="empty-box">{html_escape(message) if message else "Nothing is changed until you submit a form."}</div>
@@ -2450,7 +2493,7 @@ def manual_entry():
             <button class="tab active" type="submit">Add Machine</button>
         </form>
     </section>
-    <section class="panel">
+    <section class="panel pm-manual-panel">
         <h3>Add a PM Task</h3>
         <form method="post">
             <input type="hidden" name="record_type" value="task">
