@@ -63,7 +63,7 @@ def create_template(machine_only=False):
 
 
 def completed_at_from_excel(row):
-    """Return historical ISO timestamp. A missing clock time defaults to noon."""
+    """Return historical timestamp; keep date-only values date-only."""
     raw_date = row.get("Completion Date")
     if isinstance(raw_date, datetime):
         dt = raw_date
@@ -88,9 +88,9 @@ def completed_at_from_excel(row):
 
     raw_time = row.get("Completion Time")
     if raw_time is None or str(raw_time).strip() == "":
-        # Preserve time already present in full date+time; otherwise noon.
-        if dt.time() == time.min:
-            dt = dt.replace(hour=12)
+        # Do not invent a clock time for a date-only historical entry.
+        if dt.time() == time.min and not isinstance(raw_date, datetime):
+            return dt.date().isoformat()
     elif isinstance(raw_time, datetime):
         dt = datetime.combine(dt.date(), raw_time.time())
     elif isinstance(raw_time, time):
@@ -132,7 +132,7 @@ def import_requests(conn, rows):
             submitted_at = (
                 submitted_at.isoformat(timespec="seconds")
                 if isinstance(submitted_at, datetime)
-                else datetime.combine(submitted_at, time(12)).isoformat(timespec="seconds")
+                else submitted_at.isoformat()
             )
         else:
             submitted_at = str(submitted_at).strip()
@@ -141,7 +141,7 @@ def import_requests(conn, rows):
         if isinstance(closed_at, datetime):
             closed_at = closed_at.isoformat(timespec="seconds")
         elif isinstance(closed_at, date):
-            closed_at = datetime.combine(closed_at, time(12)).isoformat(timespec="seconds")
+            closed_at = closed_at.isoformat()
         elif closed_at:
             closed_at = str(closed_at).strip()
             datetime.fromisoformat(closed_at)
