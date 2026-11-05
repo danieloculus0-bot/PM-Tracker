@@ -24,6 +24,8 @@ Source: "..\PM_Tracker_Machines_Only_Template.xlsx"; DestDir: "{app}"; Flags: ig
 Source: "..\server\install-server.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\server\uninstall-server.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\docs\EXCEL_IMPORT.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\docs\WINDOWS_SERVER_INSTALL.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Run]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-server.ps1"" -InstallDir ""{app}"""; Flags: runhidden waituntilterminated
