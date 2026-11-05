@@ -4,8 +4,8 @@ PM Tracker supports two complementary workflows: **import a generic Excel machin
 
 ## Generic templates
 
-- [Download machines-only template from a running tracker](../app.py) via the **Machines Template** navigation link (`/machines-template.xlsx`).
-- [Download full template from a running tracker](../app.py) via **Full Excel Template** (`/template.xlsx`).
+- Download the machines-only template from a running tracker via the **Machines Template** navigation link (`/machines-template.xlsx`).
+- Download the full template from a running tracker via **Full Excel Template** (`/template.xlsx`).
 - For an offline template, run `python tools/create_blank_template.py` in a disposable development checkout, or retrieve the **generic Windows Server release artifact** from Actions. CI creates both empty `PM_Tracker_Machines_Only_Template.xlsx` and `PM_Tracker_Import_Template.xlsx`. No real rows are included.
 
 These sheets can be imported separately; names and first-row headers must match:
