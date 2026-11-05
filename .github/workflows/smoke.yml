@@ -42,5 +42,32 @@ jobs:
           assert {"Machines", "PM_Tasks", "Completion_Log"}.issubset(set(wb.sheetnames))
           wb.close()
 
+          # Synthetic PM record, with a second machine to detect cross-machine task spoofing.
+          wb = pm.get_workbook()
+          wb["Machines"].append(["SYN-M01", "Fictional Press", "Demo", "Test Bay"])
+          wb["Machines"].append(["SYN-M02", "Fictional Mill", "Demo", "Test Bay"])
+          wb["PM_Tasks"].append(["SYN-T01", "SYN-M01", "Synthetic inspection", "Test only", "Days", 7])
+          wb.save(pm.EXCEL_FILE)
+          wb.close()
+
+          valid = {"machine_id": "SYN-M01", "task_id": "SYN-T01",
+                   "operator_name": "Synthetic Operator", "completion_notes": "Test only"}
+          for invalid in (
+              {**valid, "machine_id": "SYN-M02"},
+              {**valid, "task_id": "SYN-UNKNOWN"},
+              {**valid, "machine_id": "SYN-UNKNOWN"},
+          ):
+              response = client.post("/complete-task", data=invalid)
+              assert response.status_code == 404, (invalid, response.status_code)
+          assert pm.latest_completion("SYN-M01", "SYN-T01") is None
+
+          response = client.post("/complete-task", data=valid)
+          assert response.status_code == 302, response.status_code
+          # A fresh SQLite connection must see the persisted completion.
+          saved = pm.latest_completion("SYN-M01", "SYN-T01")
+          assert saved is not None and saved["operator_name"] == "Synthetic Operator"
+          assert saved["completion_notes"] == "Test only"
+          assert pm.latest_completion("SYN-M02", "SYN-T01") is None
+
           print("PM Tracker smoke OK")
           PY
