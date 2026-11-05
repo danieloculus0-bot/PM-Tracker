@@ -63,6 +63,10 @@ jobs:
           print("PM Tracker server smoke test OK")
           '@ | python
 
+      - name: Test generic import and manual entry with fictional data
+        shell: pwsh
+        run: python -m unittest discover -s tests -v
+
       - name: Build Windows executable
         shell: pwsh
         run: python -m PyInstaller --noconfirm --clean --onefile --name "PM Tracker" .\app.py
