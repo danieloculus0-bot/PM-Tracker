@@ -89,7 +89,7 @@ def completed_at_from_excel(row):
     raw_time = row.get("Completion Time")
     if raw_time is None or str(raw_time).strip() == "":
         # Do not invent a clock time for a date-only historical entry.
-        if dt.time() == time.min and not isinstance(raw_date, datetime):
+        if dt.time() == time.min:
             return dt.date().isoformat()
     elif isinstance(raw_time, datetime):
         dt = datetime.combine(dt.date(), raw_time.time())
