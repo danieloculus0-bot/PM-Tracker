@@ -15,3 +15,11 @@ dist/
 *.log
 app_BEFORE_*.py
 main_BEFORE_*.txt
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+.env
+.env.*
+private-backups/
