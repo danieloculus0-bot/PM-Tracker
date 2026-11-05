@@ -2086,18 +2086,24 @@ def _merge_sheet_by_key(dest_ws, source_rows, key_names):
                 existing[(key_name, value)] = r
     added = updated = 0
     for src in source_rows:
+        if not any(str(src.get(key_name) or "").strip() for key_name in key_names):
+            raise ValueError("Import row has no required identifier: " + ", ".join(key_names))
         target_row = None
         for key_name in key_names:
             value = str(src.get(key_name) or "").strip()
             if value and (key_name, value) in existing:
                 target_row = existing[(key_name, value)]
                 break
-        if target_row is None:
+        is_update = target_row is not None
+        if not is_update:
             target_row = dest_ws.max_row + 1
             added += 1
         else:
             updated += 1
         for header, value in src.items():
+            # A blank field in a partial import is not a request to delete an existing value.
+            if is_update and value in (None, ""):
+                continue
             if header not in header_map:
                 col = dest_ws.max_column + 1
                 dest_ws.cell(row=1, column=col).value = header
@@ -2387,10 +2393,10 @@ def manual_entry():
                 if machine_id not in mids:
                     return "Machine ID does not exist. Add the machine first.", 400
                 ws = _ensure_sheet(wb, "PM_Tasks", TASK_HEADERS)
-                pairs = {(str(r.get("Machine ID") or "").strip(), str(r.get("Task ID") or "").strip())
-                         for r in _sheet_rows_as_dicts(ws)}
-                if (machine_id, task_id) in pairs:
-                    return "This machine/task combination already exists.", 409
+                ids = {str(r.get("Task ID") or "").strip()
+                       for r in _sheet_rows_as_dicts(ws)}
+                if task_id in ids:
+                    return "Task ID already exists. Choose a unique Task ID.", 409
                 freq_unit = request.form.get("frequency_unit", "Days").strip()
                 if freq_unit not in ("Days", "Weeks", "Months"):
                     return "Invalid frequency unit.", 400
