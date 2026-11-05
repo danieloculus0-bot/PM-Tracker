@@ -63,6 +63,10 @@ jobs:
           print("PM Tracker server smoke test OK")
           '@ | python
 
+      - name: Test generic import and manual entry with fictional data
+        shell: pwsh
+        run: python -m unittest discover -s tests -v
+
       - name: Build Windows executable
         shell: pwsh
         run: python -m PyInstaller --noconfirm --clean --onefile --name "PM Tracker" .\app.py
@@ -127,9 +131,12 @@ jobs:
           Copy-Item '.\dist\PM Tracker.exe' '.\server-bundle\PM Tracker.exe'
           Copy-Item '.\site_config.example.json' '.\server-bundle\site_config.example.json'
           Copy-Item '.\PM_Tracker_Import_Template.xlsx' '.\server-bundle\PM_Tracker_Import_Template.xlsx'
+          Copy-Item '.\PM_Tracker_Machines_Only_Template.xlsx' '.\server-bundle\PM_Tracker_Machines_Only_Template.xlsx'
           Copy-Item '.\server\install-server.ps1' '.\server-bundle\install-server.ps1'
           Copy-Item '.\server\uninstall-server.ps1' '.\server-bundle\uninstall-server.ps1'
           Copy-Item '.\README.md' '.\server-bundle\README.md'
+          Copy-Item '.\docs\EXCEL_IMPORT.md' '.\server-bundle\EXCEL_IMPORT.md'
+          Copy-Item '.\docs\WINDOWS_SERVER_INSTALL.md' '.\server-bundle\WINDOWS_SERVER_INSTALL.md'
 
           @(
             "PM Tracker Windows Server Release"
@@ -138,7 +145,7 @@ jobs:
             "Sanitized: yes"
             "Production machine data included: no"
             "Production PM history included: no"
-            "Spreadsheet import sheets: Machines, PM_Tasks, Completion_Log"
+            "Spreadsheet import sheets: Machines, PM_Tasks, Completion_Log, Maintenance_Requests"
             "Runtime data path: C:\ProgramData\PM Tracker"
           ) | Set-Content .\RELEASE_MANIFEST.txt
 

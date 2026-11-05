@@ -10,6 +10,8 @@ import qrcode.image.svg
 import json
 import urllib.request
 import urllib.parse
+from pm_import import (MACHINE_HEADERS, TASK_HEADERS, COMPLETION_HEADERS, REQUEST_HEADERS,
+                       create_template, completed_at_from_excel, import_requests)
 
 app = Flask(__name__)
 
@@ -856,7 +858,9 @@ def tabs_html(active="dashboard"):
         <a class="{maint_class}" href="/maintenance">Maintenance Requests</a>
         <a class="{qr_class}" href="/qr">QR Codes</a>
         <a class="tab" href="/import">Import / Update Data</a>
-        <a class="tab" href="/template.xlsx">Blank Template</a>
+        <a class="tab" href="/template.xlsx">Full Excel Template</a>
+        <a class="tab" href="/machines-template.xlsx">Machines Template</a>
+        <a class="tab" href="/manual-entry">Manual Entry</a>
         <a class="tab green" href="/export.xlsx">Export Excel</a>
     </div>
     """
@@ -2015,22 +2019,26 @@ def qr_page():
 
 @app.route("/template.xlsx")
 def download_template():
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Machines"
-    ws.append(["Machine ID", "Machine Name", "Department", "Location", "Manufacturer", "Model", "Serial Number", "Asset Tag", "Install Year", "Criticality", "Notes", "Active (Y/N)"])
-    ws2 = wb.create_sheet("PM_Tasks")
-    ws2.append(["Task ID", "Machine ID", "Task Name", "Task Description", "Frequency Unit (Days/Weeks/Months)", "Frequency Value", "Responsible Role", "Estimated Minutes", "Safety Notes", "Active (Y/N)"])
-    ws3 = wb.create_sheet("Completion_Log")
-    ws3.append(["Completion ID", "Machine ID", "Task ID", "Completed By", "Completion Date", "Completion Time", "Notes", "Pass/Fail"])
-    for wsx in (ws, ws2, ws3):
-        for cell in wsx[1]:
-            cell.font = Font(bold=True)
-    output = BytesIO()
-    wb.save(output)
+    stream = BytesIO()
+    wb = create_template(machine_only=False)
+    wb.save(stream)
     wb.close()
-    output.seek(0)
-    return send_file(output, as_attachment=True, download_name="PM_Tracker_Import_Template.xlsx", mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    stream.seek(0)
+    return send_file(stream, as_attachment=True,
+                     download_name="PM_Tracker_Import_Template.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@app.route("/machines-template.xlsx")
+def download_machine_template():
+    stream = BytesIO()
+    wb = create_template(machine_only=True)
+    wb.save(stream)
+    wb.close()
+    stream.seek(0)
+    return send_file(stream, as_attachment=True,
+                     download_name="PM_Tracker_Machines_Only_Template.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 def _sheet_rows_as_dicts(ws):
@@ -2078,18 +2086,24 @@ def _merge_sheet_by_key(dest_ws, source_rows, key_names):
                 existing[(key_name, value)] = r
     added = updated = 0
     for src in source_rows:
+        if not any(str(src.get(key_name) or "").strip() for key_name in key_names):
+            raise ValueError("Import row has no required identifier: " + ", ".join(key_names))
         target_row = None
         for key_name in key_names:
             value = str(src.get(key_name) or "").strip()
             if value and (key_name, value) in existing:
                 target_row = existing[(key_name, value)]
                 break
-        if target_row is None:
+        is_update = target_row is not None
+        if not is_update:
             target_row = dest_ws.max_row + 1
             added += 1
         else:
             updated += 1
         for header, value in src.items():
+            # A blank field in a partial import is not a request to delete an existing value.
+            if is_update and value in (None, ""):
+                continue
             if header not in header_map:
                 col = dest_ws.max_column + 1
                 dest_ws.cell(row=1, column=col).value = header
@@ -2121,9 +2135,9 @@ def import_data():
             else:
                 dest_wb = Workbook()
                 dest_wb.remove(dest_wb.active)
-            machine_headers = ["Machine ID", "Machine Name", "Department", "Location", "Manufacturer", "Model", "Serial Number", "Asset Tag", "Install Year", "Criticality", "Notes", "Active (Y/N)"]
-            task_headers = ["Task ID", "Machine ID", "Task Name", "Task Description", "Frequency Unit (Days/Weeks/Months)", "Frequency Value", "Responsible Role", "Estimated Minutes", "Safety Notes", "Active (Y/N)"]
-            log_headers = ["Completion ID", "Machine ID", "Task ID", "Completed By", "Completion Date", "Completion Time", "Notes", "Pass/Fail"]
+            machine_headers = MACHINE_HEADERS
+            task_headers = TASK_HEADERS
+            log_headers = COMPLETION_HEADERS
             m_added = m_updated = t_added = t_updated = completions_added = 0
             if "Machines" in source_wb.sheetnames:
                 rows = _sheet_rows_as_dicts(source_wb["Machines"])
@@ -2131,47 +2145,80 @@ def import_data():
             if "PM_Tasks" in source_wb.sheetnames:
                 rows = _sheet_rows_as_dicts(source_wb["PM_Tasks"])
                 t_added, t_updated = _merge_sheet_by_key(_ensure_sheet(dest_wb, "PM_Tasks", task_headers), rows, ["Task ID"])
+            requests_added = 0
             if "Completion_Log" in source_wb.sheetnames:
                 rows = _sheet_rows_as_dicts(source_wb["Completion_Log"])
                 dest_ws = _ensure_sheet(dest_wb, "Completion_Log", log_headers)
-                h = get_headers(dest_ws)
-                mid_col = find_col(h, ["Machine ID"])
-                tid_col = find_col(h, ["Task ID"])
-                date_col = find_col(h, ["Completion Date"])
-                by_col = find_col(h, ["Completed By"])
                 existing_keys = set()
-                for r in range(2, dest_ws.max_row + 1):
-                    dt = parse_dateish(dest_ws.cell(r, date_col).value)
-                    existing_keys.add((str(dest_ws.cell(r, mid_col).value or "").strip(), str(dest_ws.cell(r, tid_col).value or "").strip(), fmt_date(dt), str(dest_ws.cell(r, by_col).value or "").strip()))
+                for prior in _sheet_rows_as_dicts(dest_ws):
+                    if not prior.get("Machine ID") or not prior.get("Task ID") or not prior.get("Completion Date"):
+                        continue
+                    try:
+                        stamp = completed_at_from_excel(prior)
+                    except ValueError:
+                        continue
+                    existing_keys.add((
+                        str(prior.get("Machine ID") or "").strip(),
+                        str(prior.get("Task ID") or "").strip(),
+                        stamp,
+                        str(prior.get("Completed By") or "").strip(),
+                    ))
                 conn = db()
-                for row in rows:
-                    machine_id = str(row.get("Machine ID") or "").strip()
-                    task_id = str(row.get("Task ID") or "").strip()
-                    completed_by = str(row.get("Completed By") or "Imported").strip()
-                    notes = str(row.get("Notes") or "").strip()
-                    dt = parse_dateish(row.get("Completion Date"))
-                    if not machine_id or not task_id or not dt:
-                        continue
-                    date_text = dt.strftime("%Y-%m-%d")
-                    key = (machine_id, task_id, date_text, completed_by)
-                    if key in existing_keys:
-                        continue
-                    dest_ws.append([row.get(header) for header in log_headers])
-                    completed_at = dt.replace(hour=12, minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
-                    db_exists = conn.execute("SELECT 1 FROM completions WHERE machine_id=? AND task_id=? AND date(completed_at)=? AND operator_name=? LIMIT 1", (machine_id, task_id, date_text, completed_by)).fetchone()
-                    if not db_exists:
-                        conn.execute("INSERT INTO completions (machine_id, task_id, operator_name, completion_notes, completed_at) VALUES (?, ?, ?, ?, ?)", (machine_id, task_id, completed_by, notes, completed_at))
-                    existing_keys.add(key)
-                    completions_added += 1
-                conn.commit()
-                conn.close()
+                try:
+                    for row in rows:
+                        machine_id = str(row.get("Machine ID") or "").strip()
+                        task_id = str(row.get("Task ID") or "").strip()
+                        completed_by = str(row.get("Completed By") or "").strip()
+                        if not machine_id or not task_id or not completed_by:
+                            raise ValueError("Completion_Log requires Machine ID, Task ID, Completed By")
+                        stamp = completed_at_from_excel(row)
+                        key = (machine_id, task_id, stamp, completed_by)
+                        if key not in existing_keys:
+                            dest_ws.append([row.get(header) for header in log_headers])
+                            existing_keys.add(key)
+                        if row.get("Completion Time") not in (None, ""):
+                            db_exists = conn.execute("""
+                                SELECT 1 FROM completions WHERE machine_id=? AND task_id=?
+                                AND completed_at=? AND operator_name=? LIMIT 1
+                            """, (machine_id, task_id, stamp, completed_by)).fetchone()
+                        else:
+                            db_exists = conn.execute("""
+                                SELECT 1 FROM completions WHERE machine_id=? AND task_id=?
+                                AND date(completed_at)=date(?) AND operator_name=? LIMIT 1
+                            """, (machine_id, task_id, stamp, completed_by)).fetchone()
+                        if not db_exists:
+                            conn.execute("""
+                                INSERT INTO completions
+                                    (machine_id, task_id, operator_name, completion_notes, completed_at)
+                                VALUES (?, ?, ?, ?, ?)
+                            """, (machine_id, task_id, completed_by,
+                                  str(row.get("Notes") or "").strip(), stamp))
+                            completions_added += 1
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+                finally:
+                    conn.close()
+            if "Maintenance_Requests" in source_wb.sheetnames:
+                rows = _sheet_rows_as_dicts(source_wb["Maintenance_Requests"])
+                if rows:
+                    conn = db()
+                    try:
+                        requests_added = import_requests(conn, rows)
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
+                        raise
+                    finally:
+                        conn.close()
             _ensure_sheet(dest_wb, "Machines", machine_headers)
             _ensure_sheet(dest_wb, "PM_Tasks", task_headers)
             _ensure_sheet(dest_wb, "Completion_Log", log_headers)
             dest_wb.save(EXCEL_FILE)
             source_wb.close()
             dest_wb.close()
-            message = f"Import complete. Machines added: {m_added}, updated: {m_updated}. Tasks added: {t_added}, updated: {t_updated}. Completion records added: {completions_added}."
+            message = f"Import complete. Machines added: {m_added}, updated: {m_updated}. Tasks added: {t_added}, updated: {t_updated}. New completion records: {completions_added}. New requests: {requests_added}."
         except Exception as exc:
             return f"Import failed: {html_escape(str(exc))}", 400
     body = f"""
@@ -2183,7 +2230,9 @@ def import_data():
             <div style="margin:20px 0;"><input type="file" name="file" accept=".xlsx" required></div>
             <div class="btn-row">
                 <button class="tab active" type="submit">Import / Update Data</button>
-                <a class="action silver" href="/template.xlsx">Download Blank Template</a>
+                <a class="action silver" href="/template.xlsx">Full Excel Template</a>
+                <a class="action silver" href="/machines-template.xlsx">Machines Only Template</a>
+                <a class="action silver" href="/manual-entry">Add Manually</a>
             </div>
         </form>
     </section>
@@ -2301,6 +2350,126 @@ def export_excel():
         download_name=filename,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+
+@app.route("/manual-entry", methods=["GET", "POST"])
+def manual_entry():
+    """Add machines and PM tasks without preparing a spreadsheet."""
+    ensure_data_workbook()
+    message = ""
+    if request.method == "POST":
+        kind = request.form.get("record_type", "").strip()
+        wb = None
+        try:
+            wb = load_workbook(EXCEL_FILE)
+            if kind == "machine":
+                machine_id = request.form.get("machine_id", "").strip()
+                machine_name = request.form.get("machine_name", "").strip()
+                if not machine_id or not machine_name:
+                    return "Machine ID and Machine Name are required.", 400
+                ws = _ensure_sheet(wb, "Machines", MACHINE_HEADERS)
+                ids = {str(r.get("Machine ID") or "").strip() for r in _sheet_rows_as_dicts(ws)}
+                if machine_id in ids:
+                    return "Machine ID already exists. Use Excel import to update it.", 409
+                row = {
+                    "Machine ID": machine_id, "Machine Name": machine_name,
+                    "Department": request.form.get("department", "").strip(),
+                    "Location": request.form.get("location", "").strip(),
+                    "Manufacturer": request.form.get("manufacturer", "").strip(),
+                    "Model": request.form.get("model", "").strip(),
+                    "Criticality": request.form.get("criticality", "").strip(),
+                    "Active (Y/N)": "Y",
+                }
+                ws.append([row.get(h) for h in MACHINE_HEADERS])
+                message = "Machine added."
+            elif kind == "task":
+                task_id = request.form.get("task_id", "").strip()
+                machine_id = request.form.get("task_machine_id", "").strip()
+                task_name = request.form.get("task_name", "").strip()
+                if not task_id or not machine_id or not task_name:
+                    return "Task ID, Machine ID and Task Name are required.", 400
+                ws_m = _ensure_sheet(wb, "Machines", MACHINE_HEADERS)
+                mids = {str(r.get("Machine ID") or "").strip() for r in _sheet_rows_as_dicts(ws_m)}
+                if machine_id not in mids:
+                    return "Machine ID does not exist. Add the machine first.", 400
+                ws = _ensure_sheet(wb, "PM_Tasks", TASK_HEADERS)
+                ids = {str(r.get("Task ID") or "").strip()
+                       for r in _sheet_rows_as_dicts(ws)}
+                if task_id in ids:
+                    return "Task ID already exists. Choose a unique Task ID.", 409
+                freq_unit = request.form.get("frequency_unit", "Days").strip()
+                if freq_unit not in ("Days", "Weeks", "Months"):
+                    return "Invalid frequency unit.", 400
+                try:
+                    freq_val = int(request.form.get("frequency_value", "0"))
+                except ValueError:
+                    return "Frequency value must be a positive whole number.", 400
+                if freq_val <= 0:
+                    return "Frequency value must be a positive whole number.", 400
+                row = {
+                    "Task ID": task_id, "Machine ID": machine_id,
+                    "Task Name": task_name,
+                    "Task Description": request.form.get("task_description", "").strip() or task_name,
+                    "Frequency Unit (Days/Weeks/Months)": freq_unit,
+                    "Frequency Value": freq_val,
+                    "Responsible Role": request.form.get("responsible_role", "").strip(),
+                    "Estimated Minutes": request.form.get("estimated_minutes", "").strip(),
+                    "Safety Notes": request.form.get("safety_notes", "").strip(),
+                    "Active (Y/N)": "Y",
+                }
+                ws.append([row.get(h) for h in TASK_HEADERS])
+                message = "PM task added."
+            else:
+                return "Unknown entry type.", 400
+            wb.save(EXCEL_FILE)
+        finally:
+            if wb is not None:
+                wb.close()
+    machines = read_machines()
+    options = "".join(
+        '<option value="' + html_escape(m["machine_id"]) + '">' +
+        html_escape(m["machine_name"]) + ' (' + html_escape(m["machine_id"]) + ')</option>'
+        for m in machines
+    )
+    body = f"""
+    {tabs_html()}
+    <section class="panel">
+        <div class="panel-head"><div><h2>Manual Data Entry</h2>
+        <div class="muted">Import a machine register first or add machines and PM tasks here.</div></div></div>
+        <div class="empty-box">{html_escape(message) if message else "Nothing is changed until you submit a form."}</div>
+        <h3>Add a Machine</h3>
+        <form method="post">
+            <input type="hidden" name="record_type" value="machine">
+            <label>Machine ID <input name="machine_id" required></label>
+            <label>Machine Name <input name="machine_name" required></label>
+            <label>Department <input name="department"></label>
+            <label>Location <input name="location"></label>
+            <label>Manufacturer <input name="manufacturer"></label>
+            <label>Model <input name="model"></label>
+            <label>Criticality <input name="criticality"></label>
+            <button class="tab active" type="submit">Add Machine</button>
+        </form>
+    </section>
+    <section class="panel">
+        <h3>Add a PM Task</h3>
+        <form method="post">
+            <input type="hidden" name="record_type" value="task">
+            <label>Machine <select name="task_machine_id" required>{options}</select></label>
+            <label>Task ID <input name="task_id" required></label>
+            <label>Task Name <input name="task_name" required></label>
+            <label>Description <textarea name="task_description"></textarea></label>
+            <label>Frequency <select name="frequency_unit">
+                <option>Days</option><option>Weeks</option><option>Months</option>
+            </select></label>
+            <label>Every <input type="number" min="1" name="frequency_value" value="30" required></label>
+            <label>Responsible Role <input name="responsible_role"></label>
+            <label>Estimated Minutes <input type="number" min="0" name="estimated_minutes"></label>
+            <label>Safety Notes <textarea name="safety_notes"></textarea></label>
+            <button class="tab active" type="submit">Add PM Task</button>
+        </form>
+    </section>
+    """
+    return layout("Manual Entry", body)
 
 
 if __name__ == "__main__":
