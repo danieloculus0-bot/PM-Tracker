@@ -23,7 +23,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe app.py
 ```
 
-Start in an empty, temporary working directory when testing if you do not want to modify any existing `pm_app.db` or `pm_data.xlsx`. The app uses its **process working directory** for these files. The generic example binds `0.0.0.0:5000`; keep tests on trusted, isolated networks.
+Run those commands from a **fresh, disposable clone**, never the active site's working directory. The app uses its **process working directory** for `pm_app.db` and `pm_data.xlsx`, so do not run a test launch from any folder containing live data. The generic example binds `0.0.0.0:5000`; keep tests on trusted, isolated networks.
 
 See [PM Tracker smoke CI](https://github.com/danieloculus0-bot/PM-Tracker/actions/workflows/smoke.yml) and [generic Windows build CI](https://github.com/danieloculus0-bot/PM-Tracker/actions/workflows/windows-server-release.yml) for current results. Build success is not proof of a successful site deployment.
 
