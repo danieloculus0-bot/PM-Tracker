@@ -10,7 +10,9 @@ $data = Join-Path $InstallDir "pm_data.xlsx"
 
 if (-not (Test-Path $exe)) { throw "PM Tracker.exe not found in $InstallDir" }
 if (-not (Test-Path $config)) {
-    Copy-Item (Join-Path $InstallDir "site_config.example.json") $config
+    $example = Join-Path $InstallDir "site_config.example.json"
+    if (-not (Test-Path $example)) { throw "Missing generic site configuration example in $InstallDir" }
+    Copy-Item $example $config
 }
 if (-not (Test-Path $data) -and (Test-Path $template)) {
     Copy-Item $template $data
@@ -18,9 +20,10 @@ if (-not (Test-Path $data) -and (Test-Path $template)) {
 
 $cfg = Get-Content $config -Raw | ConvertFrom-Json
 $port = [int]$cfg.port
+if ($port -lt 1 -or $port -gt 65535) { throw "site_config.json port must be 1 through 65535" }
 
 $ruleName = "PM Tracker Server TCP $port"
-Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+Get-NetFirewallRule -DisplayName "PM Tracker Server TCP *" -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
 New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow -Profile Domain,Private | Out-Null
 
 $taskName = "PM Tracker Server"
@@ -30,4 +33,4 @@ $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccou
 $settings = New-ScheduledTaskSettingsSet -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
 Start-ScheduledTask -TaskName $taskName
-Write-Host "PM Tracker server installed and started from $InstallDir"
+Write-Host "PM Tracker startup task registered and start requested from $InstallDir"

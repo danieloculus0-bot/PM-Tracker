@@ -1,37 +1,36 @@
 # PM-Tracker
 
-Standalone maintenance scheduling and work-completion tracking application for equipment and facility operations. It can operate independently of external business systems.
+Standalone preventive maintenance scheduling, equipment tracking, completion history and maintenance-request application. This public repository contains **generic application code and blank deployment assets only**. It does not contain real machine records or employee/site history.
 
-## Current build state
+## Available functionality
 
-**Reviewed:** 2026-10-20 · **Inspected main:** `10e8ba3959b5`.
+- Equipment and PM-task register, due-status dashboard, completion history, and maintenance requests.
+- QR machine pages, blank Excel import template, workbook import, and Excel report export.
+- Flask application served with Waitress for Windows-friendly deployment.
+- Generic x64 Windows Server installer and an automatic startup Scheduled Task.
 
-- [PM Tracker smoke](https://github.com/danieloculus0-bot/PM-Tracker/actions/runs/39489953748) — **Passed** at inspected `main`.
-- [Build Windows Server Release](https://github.com/danieloculus0-bot/PM-Tracker/actions/runs/39489953623) — **Passed** at inspected `main`.
+## Windows Server deployment
 
-Use [live Actions](https://github.com/danieloculus0-bot/PM-Tracker/actions) for changes after this dated verification.
+Start with the [Windows Server installation guide](docs/WINDOWS_SERVER_INSTALL.md). Use the [latest successful main-branch Windows build artifact](https://github.com/danieloculus0-bot/PM-Tracker/actions/workflows/windows-server-release.yml), verify SHA256 values, and install **blank** before any separately approved data migration.
 
-## Working implementation
+The installer uses `C:\ProgramData\PM Tracker` by default. The application keeps SQLite operational history (`pm_app.db`) separately from the machine/task workbook (`pm_data.xlsx`). Preserve both when updating or recovering an existing installation. GitHub Actions cannot access or migrate a private workstation's Flask/venv runtime or historical data.
 
-- Machine inventory, PM task scheduling, completion history, work requests, QR machine pages and data import/export.
-- Windows-friendly server and installer packaging, Waitress-based runtime and optional branded site configuration.
-- Explicit machine-task safety notes and conditional lockout/tagout reminders; app logic is not machine isolation.
+## Developer smoke test (blank, synthetic workspace only)
 
-## Run and test
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe app.py
+```
 
-Use the [archived full run/deployment guide](docs/archive/README_2026-10-20_before_refresh.md) for local Flask launch, Windows executable/Server setup, site data import and configuration. Test the actual target-machine work instructions before site use.
+Run those commands from a **fresh, disposable clone**, never the active site's working directory. The app uses its **process working directory** for `pm_app.db` and `pm_data.xlsx`, so do not run a test launch from any folder containing live data. The generic example binds `0.0.0.0:5000`; keep tests on trusted, isolated networks.
 
-## Limitations
+See [PM Tracker smoke CI](https://github.com/danieloculus0-bot/PM-Tracker/actions/workflows/smoke.yml) and [generic Windows build CI](https://github.com/danieloculus0-bot/PM-Tracker/actions/workflows/windows-server-release.yml) for current results. Build success is not proof of a successful site deployment.
 
-- Green packaging tests do not establish a live secured site-server installation or data migration from Excel.
-- LOTO reminders do not isolate machinery, prove zero energy, verify training or authorize hazardous maintenance.
-- Axiom may contain PM concepts/source snapshots but is not automatically reading from this standalone tracker.
+## Data and safety boundaries
 
-## Next steps
+Do not commit or upload real assets, maintenance records, exports, site configuration, production information, or credentials to GitHub, including issues and Actions logs. Use only invented synthetic fixtures. `site_config.example.json` is a neutral template; customize the private `site_config.json` only on the target installation.
 
-Verify site configuration, database integrity, machine-specific safety references and an explicit optional Axiom integration.
+The application does not implement machine isolation, LOTO verification, user authentication, TLS termination, or production ERP integration. PM task notes are not substitutes for actual safety procedures.
 
-## Documentation
-
-- [Axiom ERP target](https://github.com/danieloculus0-bot/Axiom_Beta)
-- [Full historical README, including original setup detail](docs/archive/README_2026-10-20_before_refresh.md)
+See [AGENTS.md](AGENTS.md) for public-repository confidentiality rules.

@@ -5,6 +5,7 @@ on:
     branches: [main]
     tags:
       - 'v*'
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -65,6 +66,46 @@ jobs:
       - name: Build Windows executable
         shell: pwsh
         run: python -m PyInstaller --noconfirm --clean --onefile --name "PM Tracker" .\app.py
+
+      - name: Smoke packaged Windows executable from an isolated blank directory
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $work = Join-Path $env:RUNNER_TEMP "pm-tracker-exe-smoke"
+          New-Item -ItemType Directory -Force -Path $work | Out-Null
+          $exe = Join-Path $work "PM Tracker.exe"
+          Copy-Item '.\\dist\\PM Tracker.exe' $exe
+
+          # Reserve a loopback port, then release it before the app starts.
+          $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+          $listener.Start()
+          $port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+          $listener.Stop()
+          @{ host = '127.0.0.1'; port = $port; weather_enabled = $false } |
+            ConvertTo-Json | Set-Content (Join-Path $work 'site_config.json') -Encoding utf8
+
+          $process = $null
+          try {
+            $process = Start-Process -FilePath $exe -WorkingDirectory $work -PassThru -RedirectStandardOutput (Join-Path $work 'stdout.txt') -RedirectStandardError (Join-Path $work 'stderr.txt')
+            $ok = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              if ($process.HasExited) { throw "Packaged application exited before HTTP readiness: $($process.ExitCode)" }
+              try {
+                $result = Invoke-WebRequest "http://127.0.0.1:$port/" -UseBasicParsing -TimeoutSec 2
+                if ($result.StatusCode -eq 200) { $ok = $true; break }
+              } catch { }
+              Start-Sleep -Seconds 1
+            }
+            if (-not $ok) { throw 'Packaged app did not return HTTP 200 on loopback within smoke-test window' }
+            foreach ($name in @('pm_app.db', 'pm_data.xlsx')) {
+              if (-not (Test-Path (Join-Path $work $name))) { throw "Packaged app did not initialize $name" }
+            }
+            Write-Host 'Packaged Windows EXE HTTP/data initialization smoke passed'
+          } finally {
+            if ($process -and -not $process.HasExited) {
+              & taskkill.exe /PID $process.Id /T /F | Out-Null
+            }
+          }
 
       - name: Create blank import workbook
         shell: pwsh
