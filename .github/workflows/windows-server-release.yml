@@ -135,6 +135,8 @@ jobs:
           Copy-Item '.\server\install-server.ps1' '.\server-bundle\install-server.ps1'
           Copy-Item '.\server\uninstall-server.ps1' '.\server-bundle\uninstall-server.ps1'
           Copy-Item '.\README.md' '.\server-bundle\README.md'
+          Copy-Item '.\docs\EXCEL_IMPORT.md' '.\server-bundle\EXCEL_IMPORT.md'
+          Copy-Item '.\docs\WINDOWS_SERVER_INSTALL.md' '.\server-bundle\WINDOWS_SERVER_INSTALL.md'
 
           @(
             "PM Tracker Windows Server Release"
@@ -143,7 +145,7 @@ jobs:
             "Sanitized: yes"
             "Production machine data included: no"
             "Production PM history included: no"
-            "Spreadsheet import sheets: Machines, PM_Tasks, Completion_Log"
+            "Spreadsheet import sheets: Machines, PM_Tasks, Completion_Log, Maintenance_Requests"
             "Runtime data path: C:\ProgramData\PM Tracker"
           ) | Set-Content .\RELEASE_MANIFEST.txt
 
