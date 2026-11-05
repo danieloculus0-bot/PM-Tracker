@@ -5,9 +5,16 @@ Standalone preventive maintenance scheduling, equipment tracking, completion his
 ## Available functionality
 
 - Equipment and PM-task register, due-status dashboard, completion history, and maintenance requests.
-- QR machine pages, blank Excel import template, workbook import, and Excel report export.
+- **Excel-first setup:** import a generic machines-only sheet, add PM tasks manually, or use a full spreadsheet for tasks, dated completion history and maintenance requests.
+- QR machine pages, full or machines-only blank Excel templates, spreadsheet import, manual browser entry and Excel report export.
 - Flask application served with Waitress for Windows-friendly deployment.
 - Generic x64 Windows Server installer and an automatic startup Scheduled Task.
+
+## Excel import and manual editing
+
+See [Excel import and manual-entry guide](docs/EXCEL_IMPORT.md). The running application provides a **Machines Template** at `/machines-template.xlsx`, a **Full Excel Template** at `/template.xlsx`, and browser **Manual Entry** at `/manual-entry`.
+
+The build pipeline packages **both** generic, empty templates into the Windows installer. Filled-in workbooks and actual PM histories must be kept private, never published in this repository or Actions.
 
 ## Windows Server deployment
 
