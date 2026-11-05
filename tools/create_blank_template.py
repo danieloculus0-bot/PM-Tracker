@@ -1,15 +1,18 @@
+"""Generate generic empty Excel templates for releases and manual import."""
 from pathlib import Path
-from openpyxl import Workbook
+import sys
 
-out = Path(__file__).resolve().parents[1] / "PM_Tracker_Import_Template.xlsx"
-wb = Workbook()
-ws = wb.active
-ws.title = "Machines"
-ws.append(["Machine ID", "Machine Name", "Department", "Location", "Manufacturer", "Model", "Serial Number", "Asset Tag", "Install Year", "Criticality", "Notes", "Active (Y/N)"])
-ws = wb.create_sheet("PM_Tasks")
-ws.append(["Task ID", "Machine ID", "Task Name", "Task Description", "Frequency Unit (Days/Weeks/Months)", "Frequency Value", "Responsible Role", "Estimated Minutes", "Safety Notes", "Active (Y/N)"])
-ws = wb.create_sheet("Completion_Log")
-ws.append(["Completion ID", "Machine ID", "Task ID", "Completed By", "Completion Date", "Completion Time", "Notes", "Pass/Fail"])
-wb.save(out)
-wb.close()
-print(out)
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from pm_import import create_template
+
+for name, only_machines in (
+    ("PM_Tracker_Import_Template.xlsx", False),
+    ("PM_Tracker_Machines_Only_Template.xlsx", True),
+):
+    target = ROOT / name
+    wb = create_template(machine_only=only_machines)
+    wb.save(target)
+    wb.close()
+    print(target)
