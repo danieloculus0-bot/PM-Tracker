@@ -131,6 +131,7 @@ jobs:
           Copy-Item '.\dist\PM Tracker.exe' '.\server-bundle\PM Tracker.exe'
           Copy-Item '.\site_config.example.json' '.\server-bundle\site_config.example.json'
           Copy-Item '.\PM_Tracker_Import_Template.xlsx' '.\server-bundle\PM_Tracker_Import_Template.xlsx'
+          Copy-Item '.\PM_Tracker_Machines_Only_Template.xlsx' '.\server-bundle\PM_Tracker_Machines_Only_Template.xlsx'
           Copy-Item '.\server\install-server.ps1' '.\server-bundle\install-server.ps1'
           Copy-Item '.\server\uninstall-server.ps1' '.\server-bundle\uninstall-server.ps1'
           Copy-Item '.\README.md' '.\server-bundle\README.md'
