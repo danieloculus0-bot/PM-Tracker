@@ -51,7 +51,7 @@ def create_template(machine_only=False):
         ("PM Tracker", "Generic template. Do not upload actual business records to public GitHub."),
         ("Machines", "Machine ID and Machine Name required."),
         ("PM_Tasks", "Task ID, Machine ID and Task Name required. First load machines, then add tasks in Excel or the manual-entry page."),
-        ("Completion_Log", "Actual completion date, time if known, machine, task and completed-by name. If no time is known, importer uses noon."),
+        ("Completion_Log", "Actual completion date, time if known, machine, task and completed-by name. Date-only entries retain the date without an invented time."),
         ("Maintenance_Requests", "Optional. Use Request Number and historical Submitted At timestamps for original work orders."),
         ("Partial imports", "Unused sheets may remain empty. Machines-only template is available separately."),
         ("History migration", "Keep a private pm_app.db backup too; the Excel template is not a complete replacement for SQLite historical records."),

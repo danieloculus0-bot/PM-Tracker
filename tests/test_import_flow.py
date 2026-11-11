@@ -37,6 +37,10 @@ class GenericImportTests(unittest.TestCase):
             wb = load_workbook(io.BytesIO(response.data))
             self.assertTrue(expected.issubset(set(wb.sheetnames)))
             self.assertEqual(wb["Machines"]["A1"].value, "Machine ID")
+            if route == "/template.xlsx":
+                guidance = " ".join(str(cell.value or "") for row in wb["READ_ME"] for cell in row)
+                self.assertIn("Date-only entries retain the date", guidance)
+                self.assertNotIn("importer uses noon", guidance)
             wb.close()
 
     def test_import_machine_task_completion_and_request_then_repeat(self):
