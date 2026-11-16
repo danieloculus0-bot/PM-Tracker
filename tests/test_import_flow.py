@@ -149,6 +149,40 @@ class GenericImportTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_request_batch_failure_rolls_back_without_touching_caller_transaction(self):
+        from pm_import import import_requests
+
+        conn = sqlite3.connect(self.pm.DB_FILE)
+        try:
+            # The caller may already have an open transaction.
+            conn.execute("SAVEPOINT caller_work")
+            valid = {
+                "Request Number": "GEN-BATCH-VALID",
+                "Submitted By": "Synthetic Reporter",
+                "Submitted At": "2026-10-18T10:00:00",
+                "Description": "Synthetic request",
+            }
+            invalid = dict(valid, **{
+                "Request Number": "GEN-BATCH-INVALID",
+                "Closed At": "2026-10-17T09:00:00",
+            })
+            with self.assertRaises(ValueError):
+                import_requests(conn, [valid, invalid])
+            self.assertEqual(conn.execute(
+                "SELECT COUNT(*) FROM maintenance_requests WHERE request_number LIKE 'GEN-BATCH-%'"
+            ).fetchone()[0], 0)
+            self.assertEqual(import_requests(conn, [valid]), 1)
+            self.assertEqual(conn.execute(
+                "SELECT COUNT(*) FROM maintenance_requests WHERE request_number='GEN-BATCH-VALID'"
+            ).fetchone()[0], 1)
+            conn.execute("ROLLBACK TO SAVEPOINT caller_work")
+            conn.execute("RELEASE SAVEPOINT caller_work")
+            self.assertEqual(conn.execute(
+                "SELECT COUNT(*) FROM maintenance_requests WHERE request_number='GEN-BATCH-VALID'"
+            ).fetchone()[0], 0)
+        finally:
+            conn.close()
+
     def test_manual_entries(self):
         r = self.client.post("/manual-entry", data={
             "record_type": "machine", "machine_id": "GEN-M200",
