@@ -151,7 +151,7 @@ def import_requests(conn, rows):
                 closed_at = closed_at.isoformat()
             elif closed_at:
                 closed_at = str(closed_at).strip()
-                else:
+            else:
                 closed_at = None
             if closed_at is not None:
                 try:
