@@ -136,7 +136,10 @@ def import_requests(conn, rows):
             )
         else:
             submitted_at = str(submitted_at).strip()
-            datetime.fromisoformat(submitted_at)
+        try:
+            submitted_dt = datetime.fromisoformat(submitted_at)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid Submitted At for request {request_number}") from exc
         closed_at = row.get("Closed At")
         if isinstance(closed_at, datetime):
             closed_at = closed_at.isoformat(timespec="seconds")
@@ -147,6 +150,15 @@ def import_requests(conn, rows):
             datetime.fromisoformat(closed_at)
         else:
             closed_at = None
+        if closed_at is not None:
+            try:
+                closed_dt = datetime.fromisoformat(closed_at)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid Closed At for request {request_number}") from exc
+            if (closed_dt.tzinfo is None) != (submitted_dt.tzinfo is None):
+                raise ValueError(f"Mixed timezone awareness for request {request_number}")
+            if closed_dt < submitted_dt:
+                raise ValueError(f"Closed At precedes Submitted At for request {request_number}")
         conn.execute("""
             INSERT INTO maintenance_requests (
                 request_number, submitted_by, submitted_at,
