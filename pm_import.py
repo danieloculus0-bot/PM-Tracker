@@ -116,66 +116,75 @@ def import_requests(conn, rows):
     existing = {str(r[0]).strip() for r in conn.execute(
         "SELECT request_number FROM maintenance_requests WHERE request_number IS NOT NULL"
     ).fetchall()}
-    imported = 0
-    for row in rows:
-        request_number = str(row.get("Request Number") or "").strip()
-        submitted_by = str(row.get("Submitted By") or "").strip()
-        description = str(row.get("Description") or "").strip()
-        submitted_at = row.get("Submitted At")
-        if not request_number and not any(str(v or "").strip() for v in row.values()):
-            continue
-        if not request_number or not submitted_by or not description or not submitted_at:
-            raise ValueError("Maintenance_Requests row requires Request Number, Submitted By, Submitted At, Description")
-        if request_number in existing:
-            continue
-        if isinstance(submitted_at, (datetime, date)):
-            submitted_at = (
-                submitted_at.isoformat(timespec="seconds")
-                if isinstance(submitted_at, datetime)
-                else submitted_at.isoformat()
-            )
-        else:
-            submitted_at = str(submitted_at).strip()
-        try:
-            submitted_dt = datetime.fromisoformat(submitted_at)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Invalid Submitted At for request {request_number}") from exc
-        closed_at = row.get("Closed At")
-        if isinstance(closed_at, datetime):
-            closed_at = closed_at.isoformat(timespec="seconds")
-        elif isinstance(closed_at, date):
-            closed_at = closed_at.isoformat()
-        elif closed_at:
-            closed_at = str(closed_at).strip()
-            datetime.fromisoformat(closed_at)
-        else:
-            closed_at = None
-        if closed_at is not None:
+    # A malformed later row must not leave earlier requests partially imported.
+    # SAVEPOINT preserves any caller-owned transaction without committing it.
+    conn.execute("SAVEPOINT pm_request_batch")
+    try:
+        imported = 0
+        for row in rows:
+            request_number = str(row.get("Request Number") or "").strip()
+            submitted_by = str(row.get("Submitted By") or "").strip()
+            description = str(row.get("Description") or "").strip()
+            submitted_at = row.get("Submitted At")
+            if not request_number and not any(str(v or "").strip() for v in row.values()):
+                continue
+            if not request_number or not submitted_by or not description or not submitted_at:
+                raise ValueError("Maintenance_Requests row requires Request Number, Submitted By, Submitted At, Description")
+            if request_number in existing:
+                continue
+            if isinstance(submitted_at, (datetime, date)):
+                submitted_at = (
+                    submitted_at.isoformat(timespec="seconds")
+                    if isinstance(submitted_at, datetime)
+                    else submitted_at.isoformat()
+                )
+            else:
+                submitted_at = str(submitted_at).strip()
             try:
-                closed_dt = datetime.fromisoformat(closed_at)
+                submitted_dt = datetime.fromisoformat(submitted_at)
             except (TypeError, ValueError) as exc:
-                raise ValueError(f"Invalid Closed At for request {request_number}") from exc
-            if (closed_dt.tzinfo is None) != (submitted_dt.tzinfo is None):
-                raise ValueError(f"Mixed timezone awareness for request {request_number}")
-            if closed_dt < submitted_dt:
-                raise ValueError(f"Closed At precedes Submitted At for request {request_number}")
-        conn.execute("""
-            INSERT INTO maintenance_requests (
+                raise ValueError(f"Invalid Submitted At for request {request_number}") from exc
+            closed_at = row.get("Closed At")
+            if isinstance(closed_at, datetime):
+                closed_at = closed_at.isoformat(timespec="seconds")
+            elif isinstance(closed_at, date):
+                closed_at = closed_at.isoformat()
+            elif closed_at:
+                closed_at = str(closed_at).strip()
+                else:
+                closed_at = None
+            if closed_at is not None:
+                try:
+                    closed_dt = datetime.fromisoformat(closed_at)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"Invalid Closed At for request {request_number}") from exc
+                if (closed_dt.tzinfo is None) != (submitted_dt.tzinfo is None):
+                    raise ValueError(f"Mixed timezone awareness for request {request_number}")
+                if closed_dt < submitted_dt:
+                    raise ValueError(f"Closed At precedes Submitted At for request {request_number}")
+            conn.execute("""
+                INSERT INTO maintenance_requests (
+                    request_number, submitted_by, submitted_at,
+                    machine_id, machine_name, location, priority,
+                    description, status, assigned_to, resolution_notes, closed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
                 request_number, submitted_by, submitted_at,
-                machine_id, machine_name, location, priority,
-                description, status, assigned_to, resolution_notes, closed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            request_number, submitted_by, submitted_at,
-            str(row.get("Machine ID") or "").strip(),
-            str(row.get("Machine Name") or "").strip(),
-            str(row.get("Location") or "").strip(),
-            str(row.get("Priority") or "Medium").strip(),
-            description, str(row.get("Status") or "Open").strip(),
-            str(row.get("Assigned To") or "").strip(),
-            str(row.get("Resolution Notes") or "").strip(),
-            closed_at,
-        ))
-        existing.add(request_number)
-        imported += 1
+                str(row.get("Machine ID") or "").strip(),
+                str(row.get("Machine Name") or "").strip(),
+                str(row.get("Location") or "").strip(),
+                str(row.get("Priority") or "Medium").strip(),
+                description, str(row.get("Status") or "Open").strip(),
+                str(row.get("Assigned To") or "").strip(),
+                str(row.get("Resolution Notes") or "").strip(),
+                closed_at,
+            ))
+            existing.add(request_number)
+            imported += 1
+    except Exception:
+        conn.execute("ROLLBACK TO SAVEPOINT pm_request_batch")
+        conn.execute("RELEASE SAVEPOINT pm_request_batch")
+        raise
+    else:
+        conn.execute("RELEASE SAVEPOINT pm_request_batch")
     return imported
