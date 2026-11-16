@@ -115,6 +115,40 @@ class GenericImportTests(unittest.TestCase):
         self.assertEqual(stamp, "2026-10-21")
         conn.close()
 
+    def test_request_import_rejects_impossible_closure_chronology(self):
+        from pm_import import import_requests
+
+        conn = sqlite3.connect(self.pm.DB_FILE)
+        try:
+            for closed_at in ("2026-10-18T09:00:00", "2026-10-19T10:00:00+00:00"):
+                with self.subTest(closed_at=closed_at):
+                    row = {
+                        "Request Number": "GEN-CHRONO-FAIL",
+                        "Submitted By": "Synthetic Reporter",
+                        "Submitted At": "2026-10-18T10:00:00",
+                        "Description": "Synthetic maintenance request",
+                        "Closed At": closed_at,
+                    }
+                    with self.assertRaises(ValueError):
+                        import_requests(conn, [row])
+                    self.assertEqual(conn.execute(
+                        "SELECT COUNT(*) FROM maintenance_requests WHERE request_number=?",
+                        ("GEN-CHRONO-FAIL",)
+                    ).fetchone()[0], 0)
+
+            accepted = {
+                "Request Number": "GEN-CHRONO-PASS",
+                "Submitted By": "Synthetic Reporter",
+                "Submitted At": "2026-10-18T10:00:00",
+                "Description": "Synthetic completed request",
+                "Closed At": "2026-10-18T11:00:00",
+            }
+            self.assertEqual(import_requests(conn, [accepted]), 1)
+            self.assertEqual(import_requests(conn, [accepted]), 0)
+            conn.rollback()
+        finally:
+            conn.close()
+
     def test_manual_entries(self):
         r = self.client.post("/manual-entry", data={
             "record_type": "machine", "machine_id": "GEN-M200",
